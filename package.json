@@ -1,6 +1,6 @@
 {
   "name": "@nahuelalbornoz/mercadolibre-mcp",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "MCP server completo para Mercado Libre — 11 tools TRAID de seller (con write-back) + proxy al MCP oficial de ML (auto-actualizado server-side) + token-store Supabase multi-tenant.",
   "license": "MIT",
   "type": "module",
@@ -19,6 +19,7 @@
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
+    "test": "tsx --test test/**/*.test.ts",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {

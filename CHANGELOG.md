@@ -2,6 +2,14 @@
 
 Todas las versiones de `@nahuelalbornoz/mercadolibre-mcp` en orden inverso.
 
+## [1.1.1] — 2026-07-01
+
+Patch de seguridad. Sin cambios de arquitectura ni tools nuevas — mismo alcance que 1.1.0.
+
+### Fixed (seguridad)
+- **Auto-refresh serializado (single-flight in-process)**: dos refrescos concurrentes del `refresh_token` (de un solo uso en ML) ya no revocan la cuenta con `invalid_grant` en el segundo request.
+- **Nunca se loguea el valor del token** (ni truncado/substring) — antes se imprimían los primeros 20 caracteres del `refresh_token` rotado en logs.
+
 ## [1.1.0] — 2026-05-28
 
 ### Added
@@ -43,4 +51,4 @@ Todas las versiones de `@nahuelalbornoz/mercadolibre-mcp` en orden inverso.
 - `manage_ads` — pausa/activa publicaciones y edita ads
 
 ### Notes
-- Versión full con write-back — para subset read-only ver `@traid/mercadolibre-mcp-read`.
+- Versión full con write-back — para subset read-only ver `@nahuelalbornoz/mercadolibre-mcp-read`.

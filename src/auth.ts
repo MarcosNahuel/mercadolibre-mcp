@@ -2,6 +2,14 @@
 // 0. Supabase (SUPABASE_URL + SUPABASE_SERVICE_KEY) — lee de oauth_tokens, refresheado por n8n
 // 1. Token directo (ML_ACCESS_TOKEN) — refresheado externamente por n8n/cron
 // 2. Auto-refresh (ML_CLIENT_ID + ML_CLIENT_SECRET + ML_REFRESH_TOKEN) — refresh interno cada 6h
+//
+// REGLA DE LOGGING (no negociable): JAMÁS se loguea el valor de un token (ni
+// truncado). Solo "presente/ausente" o "refrescado ok" (ver docs/PLAN-fusion-mercadolibre-mcp.md B2).
+//
+// El modo 2 serializa el refresh con single-flight in-process (una sola promesa
+// de refresh por proceso): el refresh_token de ML es de un solo uso (rota en cada
+// refresh) — dos refresh concurrentes revocan la cuenta (invalid_grant en el segundo).
+// Ver docs/PLAN-fusion-mercadolibre-mcp.md B1.
 
 import type { MLConfig, TokenData } from './types.js'
 import {
@@ -13,6 +21,8 @@ import {
 const ML_AUTH_URL = 'https://api.mercadolibre.com/oauth/token'
 
 let cachedToken: TokenData | null = null
+/** single-flight: si ya hay un refresh en curso, todos los callers comparten esa promesa. */
+let refreshInflight: Promise<TokenData> | null = null
 
 export function getConfig(): MLConfig {
   const clientId = process.env.ML_CLIENT_ID || ''
@@ -41,6 +51,23 @@ export async function getAccessToken(): Promise<string> {
     return cachedToken.accessToken
   }
 
+  // Single-flight: si ya hay un refresh en curso, compartimos esa promesa en vez
+  // de disparar un segundo POST /oauth/token en paralelo (rotaría el refresh_token
+  // dos veces y el segundo request fallaría con invalid_grant).
+  if (refreshInflight) {
+    const tok = await refreshInflight
+    return tok.accessToken
+  }
+
+  const p = refreshToken().finally(() => {
+    refreshInflight = null
+  })
+  refreshInflight = p
+  const tok = await p
+  return tok.accessToken
+}
+
+async function refreshToken(): Promise<TokenData> {
   const config = getConfig()
 
   if (!config.clientId || !config.clientSecret || !config.refreshToken) {
@@ -62,9 +89,9 @@ export async function getAccessToken(): Promise<string> {
   })
 
   if (!response.ok) {
-    const errorText = await response.text()
+    // No incluimos el body de la respuesta: podría reflejar el refresh_token enviado.
     throw new Error(
-      `Error renovando token ML (${response.status}): ${errorText}. ` +
+      `Error renovando token ML (HTTP ${response.status}). ` +
       'Verificá que ML_CLIENT_ID, ML_CLIENT_SECRET y ML_REFRESH_TOKEN sean correctos.'
     )
   }
@@ -80,19 +107,20 @@ export async function getAccessToken(): Promise<string> {
     expiresAt: Date.now() + data.expires_in * 1000,
   }
 
-  // Actualizar el refresh_token si ML devuelve uno nuevo
+  // Actualizar el refresh_token si ML devuelve uno nuevo. NUNCA logueamos el valor
+  // (ni truncado) — solo que rotó.
   if (data.refresh_token && data.refresh_token !== config.refreshToken) {
     process.env.ML_REFRESH_TOKEN = data.refresh_token
-    console.error(
-      `[ml-mcp] Refresh token actualizado. Nuevo: ${data.refresh_token.substring(0, 20)}...`
-    )
+    console.error('[ml-mcp] Refresh token rotado por ML (nuevo valor aplicado, no se loguea).')
   }
 
-  return cachedToken.accessToken
+  console.error('[ml-mcp] Access token refrescado ok.')
+  return cachedToken
 }
 
 // Para tests o reset manual (limpia ambos caches)
 export function clearTokenCache(): void {
   cachedToken = null
+  refreshInflight = null
   clearSupabaseTokenCache()
 }
