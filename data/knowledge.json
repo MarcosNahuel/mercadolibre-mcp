@@ -1,0 +1,2104 @@
+{
+  "version": "1.0",
+  "generated_at": "2026-07-01T02:51:41.458079+00:00",
+  "source_commit": "9316112",
+  "features": [
+    {
+      "slug": "n8n-evolution-multimedia-handler",
+      "title": "Handler multimedia Evolution → Gemini en n8n italicia",
+      "summary": "Patrón para descargar audio/imagen/doc de Evolution API real (traidagency.com) y transcribir/describir vía Vertex Gemini 2.5-flash con retry 3x.",
+      "category_primary": "STACK",
+      "category_secondary": [],
+      "repos_origin": [],
+      "reusability": "media",
+      "status": "stable",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [],
+        "cons": []
+      },
+      "how_to_reuse": "",
+      "related_features": [],
+      "markdown_path": "knowledge/features/n8n-evolution-multimedia-handler.md"
+    },
+    {
+      "slug": "cron-nocturno-competencia-vercel",
+      "title": "Cron Nocturno de Competencia (Vercel Cron + x-vercel-cron, fail-closed)",
+      "summary": "Refresca los datos de competencia (`catalog_competition` + `catalog_competition_candidates`) automáticamente de noche con un Vercel Cron, sin necesidad de setear un secreto manual: autentica la invocación por el header `x-vercel-cron` que Vercel inyecta y sanitiza, falla cerrado (401) si no hay auth válida, y corre stalest-first con presupuesto de tiempo para no exceder el límite de función.",
+      "category_primary": "AUTOMATIZACION",
+      "category_secondary": [
+        "STACK"
+      ],
+      "repos_origin": [
+        "traid-adrian"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: cero secretos manuales para que el cron funcione (un punto menos de config por cliente); fail-closed por default (la ruta nunca queda abierta); el header x-vercel-cron no es falsificable (Vercel lo sanitiza); presupuesto de tiempo + stalest-first hace el job resiliente al límite de función; idempotente; degradación elegante si Vertex no está."
+        ],
+        "cons": [
+          "Contras: el auth por x-vercel-cron es específico de Vercel — no porta tal cual a Dokploy/worker propio (ahí hay que volver a CRON_SECRET/Bearer o IP allowlist); requiere acordarse de agregar el prefijo de la ruta al guard isCronRoute del proxy (si no, 307 silencioso); el lazy-init de Supabase es un gotcha no obvio (instanciar a nivel módulo rompe next build, no tsc)."
+        ]
+      },
+      "how_to_reuse": "1. Copiar: el bloque `crons[]` de `vercel.json`, el Route Handler `app/api/cron/<job>/route.ts` (la función `handle` con la auth), y el guard `isCronRoute` de `lib/supabase/proxy.ts`.\n2. Adaptar: cambiá `path`/`schedule` del cron y el `syncCatalogCompetition(...)` por tu job; ajustá el prefijo de `isCronRoute` si tus rutas máquina-a-máquina no viven bajo `/api/cron`. Mantené el lazy-init de Supabase (no instanciar el admin client a nivel de módulo).\n3. Conectar: las envs en Vercel — `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (admin), opcional `CRON_SECRET` (hardening), opcional `GOOGLE_VERTEX_SA_JSON` + `GCP_PROJECT_ID` (si usás Vertex). Verificá que el proyecto sea Next 16 con `proxy.ts` (no `middleware.ts`).\n4. Validar: `next build` debe imprimir la route Y \"Proxy (Middleware)\" wired. Probá el fail-closed: `GET /api/cron/<job>` sin header → 401. Confirmá que el proxy NO redirige: el cron NO debe terminar en 307 a `/auth/login`. En Vercel, mirá los logs de la invocación nocturna (debe devolver `{ ok: true, ... }`, no 401/307).",
+      "related_features": [
+        "patron-multicuenta-ml-token-manager",
+        "patron-fetch-process-split-rate-limit"
+      ],
+      "markdown_path": "knowledge/features/AUTOMATIZACION/cron-nocturno-competencia-vercel.md"
+    },
+    {
+      "slug": "patron-fetch-process-split-rate-limit",
+      "title": "Patrón Fetch+Process Split para APIs con Rate Limit",
+      "summary": "",
+      "category_primary": "AUTOMATIZACION",
+      "category_secondary": [
+        "N8N",
+        "DATOS"
+      ],
+      "repos_origin": [
+        "mati-satine-software"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Complejidad doble (2 workflows en lugar de 1); justificado solo cuando hay quota real",
+          "El gap entre Fetch y Process introduce latencia; no apto para datos en tiempo real",
+          "Requiere monitoreo de ambos workflows por separado"
+        ],
+        "cons": []
+      },
+      "how_to_reuse": "1. Identificar la operación \"costosa\" (quota) y la \"barata\" (lectura de resultado)\n2. Crear dos workflows n8n: uno con el schedule de la quota, otro con schedule frecuente\n3. Usar `sync_state` o tabla propia para comunicar el cursor/task_id entre workflows\n4. Agregar `idempotency_key` en la tabla destino para evitar duplicados en reprocesos\n5. Conectar el workflow Fetch al error trigger del sistema de alertas",
+      "related_features": [
+        "webhook-ingest-queue-durable",
+        "sistema-alertas-n8n-errorworkflow"
+      ],
+      "markdown_path": "knowledge/features/AUTOMATIZACION/patron-fetch-process-split-rate-limit.md"
+    },
+    {
+      "slug": "patron-hitl-risk-score-auto-aprobacion",
+      "title": "Patrón HITL con Risk Score y Auto-aprobación por Umbral",
+      "summary": "",
+      "category_primary": "AUTOMATIZACION",
+      "category_secondary": [
+        "DATOS",
+        "SOFTWARE"
+      ],
+      "repos_origin": [
+        "globalstats"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "El umbral de auto-aprobación debe ser conservador al inicio; aumentar gradualmente con evidencia",
+          "Si el canal de notificación falla, la propuesta queda en pending_human indefinidamente — agregar TTL y auto-reject",
+          "El riesgo de \"aprobación fatiga\": si hay muchas notificaciones, el operador aprueba sin leer — ajustar umbrales para reducir interrupciones"
+        ],
+        "cons": []
+      },
+      "how_to_reuse": "1. Copiar `lib/trading/risk-manager.ts` como base\n2. Reemplazar los controles por los relevantes al dominio (precios, descuentos, compras, etc.)\n3. Configurar umbrales como constantes o en tabla de config por tenant\n4. Integrar canal de notificación: Telegram (como globalstats), email, o dashboard con badge\n5. Implementar state machine en Supabase: columna `status` con check constraint",
+      "related_features": [
+        "sistema-alertas-n8n-errorworkflow",
+        "langgraph-daily-analyst"
+      ],
+      "markdown_path": "knowledge/features/AUTOMATIZACION/patron-hitl-risk-score-auto-aprobacion.md"
+    },
+    {
+      "slug": "patron-multicuenta-ml-token-manager",
+      "title": "Patrón Multi-cuenta ML Token Manager (n8n CALLBACK)",
+      "summary": "",
+      "category_primary": "AUTOMATIZACION",
+      "category_secondary": [
+        "N8N",
+        "STACK"
+      ],
+      "repos_origin": [
+        "agus"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Storage dual Redis+Supabase en agus es deuda técnica — para proyectos nuevos usar solo Supabase",
+          "El refresh masivo de 9 cuentas puede tardar si n8n tiene throttling; considerar pg_cron como alternativa más robusta",
+          "La unificación a Supabase está pendiente en agus (cuentas 1-4 aún en Redis)"
+        ],
+        "cons": []
+      },
+      "how_to_reuse": "1. Copiar workflow `CALLBACK AGUS` desde n8n italicia como template\n2. Reemplazar `client_id`, `client_secret`, `refresh_token` por las del nuevo cliente\n3. Ajustar Redis keys (si hay Redis) o usar solo Supabase `channel_credentials`\n4. Configurar cron de refresh (cada 2-5h antes de expiración)\n5. Para proyectos nuevos: preferir la arquitectura traid-meli-platform (pg_cron + EF Deno, sin Redis)",
+      "related_features": [
+        "webhook-ingest-queue-durable",
+        "pipeline-sicar-stock-efectivo-ml-woo"
+      ],
+      "markdown_path": "knowledge/features/AUTOMATIZACION/patron-multicuenta-ml-token-manager.md"
+    },
+    {
+      "slug": "pipeline-sicar-stock-efectivo-ml-woo",
+      "title": "Pipeline SICAR→stock_efectivo→ML+WOO Multi-canal",
+      "summary": "",
+      "category_primary": "AUTOMATIZACION",
+      "category_secondary": [
+        "DATOS",
+        "N8N"
+      ],
+      "repos_origin": [
+        "diego-erp"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "El patrón depende de que el ERP fuente tenga API o export confiable; sin API, requiere scraping o importación manual",
+          "La sincronización cada 2h introduce lag; para tiempo real usar webhook del ERP si está disponible",
+          "El divergence log necesita revisión manual periódica — no tiene alertas automáticas en esta versión"
+        ],
+        "cons": []
+      },
+      "how_to_reuse": "1. Reemplazar `src/app/api/sicar/` con el cliente del ERP del nuevo cliente (cambiar endpoint y schema de respuesta)\n2. Copiar migrations `*_sicar_stock.sql` y `*_stock_efectivo*.sql`\n3. Configurar `WC_STORE_URL`, `WC_CONSUMER_KEY` para WooCommerce (omitir si no hay WooCommerce)\n4. Ajustar lógica de Full-aware si el cliente usa ML Fulfillment\n5. Validar fail-safe anti-stale con el equipo técnico del ERP fuente",
+      "related_features": [
+        "webhook-ingest-queue-durable",
+        "patron-multicuenta-ml-token-manager"
+      ],
+      "markdown_path": "knowledge/features/AUTOMATIZACION/pipeline-sicar-stock-efectivo-ml-woo.md"
+    },
+    {
+      "slug": "sistema-alertas-n8n-errorworkflow",
+      "title": "Sistema de Alertas n8n con errorWorkflow",
+      "summary": "",
+      "category_primary": "AUTOMATIZACION",
+      "category_secondary": [
+        "N8N"
+      ],
+      "repos_origin": [
+        "mati-satine-software"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Requiere Gmail credential configurado en n8n; para Slack cambiar el nodo de notificación",
+          "Un solo workflow errando mucho puede generar spam de emails — agregar cooldown o deduplicación por workflow ID",
+          "No monitorea workflows desactivados accidentalmente — agregar chequeo periódico de estado de workflows activos"
+        ],
+        "cons": []
+      },
+      "how_to_reuse": "1. Importar `satine-sw-error-trigger.json` al n8n del cliente\n2. Cambiar dirección Gmail destino en el nodo de notificación\n3. Actualizar lista `CRITICAL_WORKFLOWS` con los workflow IDs del proyecto\n4. En cada workflow crítico: abrir Settings → Error Workflow → seleccionar \"Error Monitor\"\n5. Opcional: agregar tabla `alerts` a Supabase para visibilidad en el dashboard del cliente",
+      "related_features": [
+        "patron-fetch-process-split-rate-limit",
+        "webhook-ingest-queue-durable"
+      ],
+      "markdown_path": "knowledge/features/AUTOMATIZACION/sistema-alertas-n8n-errorworkflow.md"
+    },
+    {
+      "slug": "webhook-ingest-queue-durable",
+      "title": "Webhook Ingest Queue Durable (200ms SLA)",
+      "summary": "",
+      "category_primary": "AUTOMATIZACION",
+      "category_secondary": [
+        "DATOS"
+      ],
+      "repos_origin": [
+        "traid-meli-platform"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "La cola crece si el worker está caído — agregar cleanup job (DELETE WHERE status='processed' AND created_at < now()-7d)",
+          "El endpoint no valida firma HMAC en la versión base de traid-meli-platform; mati-satine-software sí la valida (MP_WEBHOOK_SECRET) — agregar validación para producción",
+          "Workers n8n con polling tienen latencia variable; para <2s usar EF Deno como worker primario"
+        ],
+        "cons": []
+      },
+      "how_to_reuse": "1. Copiar `route.ts` del endpoint webhook\n2. Aplicar migración `webhook_events` al proyecto Supabase\n3. Copiar template n8n `webhook-router.json` y configurar credenciales\n4. Agregar URL del endpoint en la configuración de notificaciones del proveedor (ML Dashboard)\n5. Implementar workers por topic según necesidades del proyecto",
+      "related_features": [
+        "patron-multicuenta-ml-token-manager",
+        "patron-fetch-process-split-rate-limit"
+      ],
+      "markdown_path": "knowledge/features/AUTOMATIZACION/webhook-ingest-queue-durable.md"
+    },
+    {
+      "slug": "agente-sourcing-competencia-ml",
+      "title": "Agente de Sourcing / Research de Competencia ML (worker Dokploy + Chrome real + Vertex)",
+      "summary": "Dado un producto del proveedor + su costo, busca en Mercado Libre el competidor **más barato, vivo y legítimo** por país, descarta accesorios/usados/réplicas, juzga imitaciones con IA (Vertex Gemini) leyendo la página de detalle, y calcula la **comisión neta + break-even por país** (con flete real Miami→país). Corre como worker async en Dokploy con Chrome real; la app Vercel lo dispara y muestra el progreso en vivo.",
+      "category_primary": "BOTS",
+      "category_secondary": [
+        "AUTOMATIZACION",
+        "STACK"
+      ],
+      "repos_origin": [
+        "traid-adrian"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: automatiza una decisión de compra que el cliente hacía a mano; Chrome real evade el anti-bot que tumba a cualquier scraper headless; el juez IA + gates de código detecta réplicas/imitaciones (señal real de valor, no demo); multi-país con economics y flete reales en una sola corrida; pipeline honesto (warnings explícitos, no inventa enlaces, nodo auditor anti-link-muerto); libs puras → testeables y portables a otro repo cliente."
+        ],
+        "cons": [
+          "Contras: el worker necesita VPS con Chrome real + Xvfb (no serverless) → más infra que una Edge Function; bug crítico abierto: cuelgue del deep-enrich en prod multi-país sin cache (Xvfb deja browsers zombie / Promise.race por-país no corta) — falta timeout duro global al nodo + reaper de jobs running huérfanos; caso patológico de mercados saturados de réplicas (echo dot: ~10 imitaciones antes del 1er real) → con K acotado la referencia puede caer en una no-analizada (se marca referencia_no_verificada); fletes por país son SUPUESTOS a confirmar; data de competencia se queda stale sin sync programado."
+        ]
+      },
+      "how_to_reuse": "1. **Copiar**: `lib/sourcing/*` (filtros/similitud/enrich/score puros, testeables sin red) + `scripts/scrape-ml-competitors.mjs` + ambas rutas `app/api/sourcing/{competitors,run}/route.ts` + `app/dashboard/sourcing/page.tsx` + el worker completo `worker/sourcing-agent/` (incl. `Dockerfile` Playwright+Xvfb).\n2. **Adaptar**: tablas Supabase `research_jobs` / `competitor_cache` / `region_costs` (flete por país del cliente); cuentas + token ML (`ACCOUNT`, refresh con lock); modelo/proyecto Vertex (`GCP_PROJECT_ID`, `gemini-3.5-flash` en `location:\"global\"`); comisiones por país en `shared/ml-fees.ts`; tokens accesorio/usado del idioma destino en `shared/product-tokens.ts`.\n3. **Conectar**: levantar el worker en Dokploy detrás de un dominio con cert LE (`SCRAPE_ENGINE=chrome`, `SCRAPE_HEADLESS=false`, `WORKER_SECRET`, SA Vertex en `/secrets/vertex-sa.json`); en Vercel setear `WORKER_URL` + `WORKER_SECRET`; la UI cuelga del dashboard y poll-ea sola.\n4. **Validar**: `cd worker/sourcing-agent && npm test` (vitest) + `npm run typecheck`; app `npx tsc --noEmit` + `npx next build`; probes `scripts/probe-pipeline.ts` / `probe-countries.ts` / `audit-live-check.ts`. **Gotcha**: invalidar cache al iterar (bump `SCRAPER_VERSION` o `DELETE FROM competitor_cache`) — el cacheHit saltea deep-enrich/audit y enmascara cambios; lo que parece \"rápido\" en prod suele ser cache hit.",
+      "related_features": [
+        "comision-real-global-selling-cbt-por-pais",
+        "motor-pricing-inverso-costo-neto-pais",
+        "motor-forward-precio-en-mano-simulador"
+      ],
+      "markdown_path": "knowledge/features/BOTS/agente-sourcing-competencia-ml.md"
+    },
+    {
+      "slug": "ai-sql-analyst-gemini",
+      "title": "AI+SQL Analyst Gemini (Analista IA Conversacional)",
+      "summary": "",
+      "category_primary": "BOTS",
+      "category_secondary": [
+        "DATOS",
+        "SOFTWARE"
+      ],
+      "repos_origin": [
+        "lubbi-erp"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "La calidad del agente depende de la calidad del schema MD — documentar bien las tablas y relaciones",
+          "Gemini puede intentar queries complejas que demoran; agregar timeout a la RPC",
+          "El contexto del schema se envía en cada request — si el schema es muy grande (>100KB), fragmentar",
+          "Tests incluidos (prompts.test.ts, schema.test.ts, tools.test.ts) — correr antes de deploy"
+        ],
+        "cons": []
+      },
+      "how_to_reuse": "1. Copiar `src/lib/analyst/` completo (4 archivos TS)\n2. Aplicar migraciones `exec_sql_readonly` y `rate_limit_function`\n3. Crear `schema/<proyecto>.md` con las tablas del nuevo ERP en formato descriptivo\n4. Actualizar `config.ts` para apuntar al schema del nuevo proyecto\n5. No requiere cambios de frontend — el componente de chat es genérico",
+      "related_features": [
+        "rag-postventa-pinecone-cohere-gemini",
+        "few-shots-dinamicos-bots"
+      ],
+      "markdown_path": "knowledge/features/BOTS/ai-sql-analyst-gemini.md"
+    },
+    {
+      "slug": "bot-preventa-ml-faq-descripcion-escalacion",
+      "title": "Bot Preventa ML con Tools FAQ + Descripción + Escalación Redis",
+      "summary": "",
+      "category_primary": "BOTS",
+      "category_secondary": [
+        "N8N",
+        "AUTOMATIZACION"
+      ],
+      "repos_origin": [
+        "agus"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "El system prompt debe ser específico al rubro del cliente — FAQs genéricas dan respuestas genéricas",
+          "Límite de 1950 caracteres por respuesta ML — respuestas largas deben resumirse",
+          "El fallback OpenAI agrega latencia (~500ms extra) cuando Gemini falla; monitorear tasa de fallback",
+          "Sin Redis, reemplazar escalación por flag en Supabase channel_credentials"
+        ],
+        "cons": []
+      },
+      "how_to_reuse": "1. Importar workflow `AGENTE PREVENTA GEMME` desde n8n italicia como template\n2. Reemplazar `NOMBRE_TIENDA` y `SITE_ID` en el prompt del AI Agent\n3. Crear Google Doc con las FAQs del nuevo cliente (formato libre)\n4. Configurar credenciales ML (`client_id`, `client_secret`, `access_token`) en n8n\n5. Configurar Redis (o reemplazar por Supabase flag para proyectos sin Redis)",
+      "related_features": [
+        "rag-postventa-pinecone-cohere-gemini",
+        "few-shots-dinamicos-bots"
+      ],
+      "markdown_path": "knowledge/features/BOTS/bot-preventa-ml-faq-descripcion-escalacion.md"
+    },
+    {
+      "slug": "few-shots-dinamicos-bots",
+      "title": "Few-shots Dinámicos para Bots (Feedback Loop)",
+      "summary": "",
+      "category_primary": "BOTS",
+      "category_secondary": [
+        "SOFTWARE"
+      ],
+      "repos_origin": [
+        "mati-satine-software"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "La calidad del sistema depende de que el operador use activamente el panel — si nadie califica, no hay mejora",
+          "Demasiados few-shots activos consumen context window del LLM — mantener los 10-15 mejores",
+          "El sistema no aprende automáticamente de ratings negativos — la curación es siempre manual"
+        ],
+        "cons": []
+      },
+      "how_to_reuse": "1. Aplicar migración `0023_bot_feedback_few_shots.sql`\n2. Agregar logging de interacciones al endpoint del bot (`INSERT INTO bot_feedback`)\n3. Copiar páginas `bots/dashboard` y rutas `api/bots/aprendizaje` + `api/bots/few-shots`\n4. Modificar el sistema de prompts del bot para incluir few-shots activos al inicio\n5. Explicar al cliente cómo calificar y promover — la adopción del panel es clave",
+      "related_features": [
+        "bot-preventa-ml-faq-descripcion-escalacion",
+        "rag-postventa-pinecone-cohere-gemini"
+      ],
+      "markdown_path": "knowledge/features/BOTS/few-shots-dinamicos-bots.md"
+    },
+    {
+      "slug": "langgraph-daily-analyst",
+      "title": "LangGraph Daily Analyst Pre/Post Market (2 grafos)",
+      "summary": "",
+      "category_primary": "BOTS",
+      "category_secondary": [
+        "AUTOMATIZACION",
+        "DATOS"
+      ],
+      "repos_origin": [
+        "globalstats"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "LangGraph tiene overhead de configuración vs. un agente simple; justificado para flujos con múltiples pasos y estado",
+          "El ConfigOverride puede generar parámetros inconsistentes — agregar validación Zod/Pydantic antes de aplicar",
+          "Requiere Python backend (FastAPI) — no es 100% Next.js. Para proyectos all-JS, considerar Vercel AI SDK con multi-step tools"
+        ],
+        "cons": []
+      },
+      "how_to_reuse": "1. Copiar `backend/app/services/daily_analyst/` completo\n2. Reemplazar `tools.py` con las tools relevantes al dominio (datos de mercado → datos de negocio)\n3. Adaptar `models.py`: reemplazar `TradingConfigOverride` con el schema del override del nuevo dominio\n4. Actualizar `prompts.py` con el contexto del negocio\n5. Ajustar horarios en `scheduler.py` (8am/22pm son para trading — adaptar al ritmo del negocio)",
+      "related_features": [
+        "patron-hitl-risk-score-auto-aprobacion",
+        "ai-sql-analyst-gemini"
+      ],
+      "markdown_path": "knowledge/features/BOTS/langgraph-daily-analyst.md"
+    },
+    {
+      "slug": "rag-postventa-pinecone-cohere-gemini",
+      "title": "RAG Postventa Pinecone + Cohere + Gemini (14 nodos n8n)",
+      "summary": "",
+      "category_primary": "BOTS",
+      "category_secondary": [
+        "N8N",
+        "STACK"
+      ],
+      "repos_origin": [
+        "agus"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Requiere Pinecone (costo por uso de índice) — para catálogos chicos considerar pgvector + similaridad coseno en Supabase",
+          "Cohere Reranker tiene latencia adicional (~300ms) — necesario para catálogos >500 docs donde la búsqueda vectorial sola tiene falsos positivos",
+          "Calidad del catálogo indexado determina la calidad de las respuestas — invertir en contenido estructurado"
+        ],
+        "cons": []
+      },
+      "how_to_reuse": "1. Copiar workflow `BUSQUEDA VECTORIAL GEMME` desde n8n italicia\n2. Crear índice Pinecone nuevo con namespace del cliente (ej: `cliente-catalogo`)\n3. Ejecutar workflow cargador para indexar fichas técnicas, FAQs y manual del cliente\n4. Configurar credenciales Pinecone, OpenAI y Cohere en n8n\n5. Agregar como tool al agente de preventa/postventa del proyecto",
+      "related_features": [
+        "bot-preventa-ml-faq-descripcion-escalacion",
+        "ai-sql-analyst-gemini"
+      ],
+      "markdown_path": "knowledge/features/BOTS/rag-postventa-pinecone-cohere-gemini.md"
+    },
+    {
+      "slug": "charges-mapper-jurisdicciones-ar",
+      "title": "Desagregador de cargos MercadoPago (24 jurisdicciones AR)",
+      "summary": "Toma cada pago de MercadoLibre y clasifica sus cargos por tipo (`commission`, `iibb`, `iva`, `shipping`, `ads`, `refund`, `other`) resolviendo la jurisdicción exacta para las 24 provincias argentinas: SIRTAC, IIBB por provincia, percepciones. Output: array de `ChargeBreakdownRow` persistido en tabla `charge_breakdown`.",
+      "category_primary": "DATOS",
+      "category_secondary": [
+        "AUTOMATIZACION"
+      ],
+      "repos_origin": [
+        "traid-meli-platform"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: único en el mercado LATAM para MLA; desglosa IIBB provincia por provincia; 1 día de implementación (port de mati-satine ya probado); agnóstico al canal"
+        ],
+        "cons": [
+          "Contras: aplica solo a Argentina (IVA 21%, 24 jurisdicciones AR); las edge functions Deno no bundlean workspaces TS, hay que copiar el mapper inline; el campo jurisdiction de ML no siempre viene completo en charges pequeños"
+        ]
+      },
+      "how_to_reuse": "1. Copiar: `packages/economics/src/charges-mapper.ts` + `packages/economics/src/jurisdictions.ts`\n2. Adaptar: importar types de `MLChargeDetail` según el cliente HTTP usado; la tabla `charge_breakdown` requiere migración `20260509000008_economics.sql`\n3. Conectar: llamar `mapCharges(payment.charges)` en el worker que procesa pagos post-sync; alimentar la calculadora de rentabilidad con los resultados\n4. Validar: la vista `unknown_charges_audit_view` lista cargos no clasificados; debería estar vacía o con menos del 2% del total",
+      "related_features": [
+        "motor-pl-order-economics-iva-ar",
+        "pgl-by-product-vista-materializada"
+      ],
+      "markdown_path": "knowledge/features/DATOS/charges-mapper-jurisdicciones-ar.md"
+    },
+    {
+      "slug": "clasificador-p1-p4-productos",
+      "title": "Clasificador P1-P4 de productos (TS + SQL)",
+      "summary": "Clasifica determinísticamente cada producto en 4 tiers: P1 (estrellas: margen alto + alta velocidad), P2 (sólidos), P3 (marginales), P4 (pérdida o congelados). Implementado en TypeScript (`@traid/classification`) y espejado en SQL. Preserva overrides manuales del operador. 10 tests unitarios. La función SQL `apply_classification_for_tenant` es idempotente.",
+      "category_primary": "DATOS",
+      "category_secondary": [
+        "SOFTWARE"
+      ],
+      "repos_origin": [
+        "traid-meli-platform"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: determinístico (sin LLM, sin probabilidades); 10 tests unitarios; umbrales configurables por tenant; la función SQL es idempotente; preserva overrides manuales"
+        ],
+        "cons": [
+          "Contras: si product_costs no está cargado, margenNetoPct será 0 y todos los productos caen a P3/P4; diasSinVenta usa proxy de 60 días cuando units_30d=0 (TODO en deuda técnica); no captura estacionalidad"
+        ]
+      },
+      "how_to_reuse": "1. Copiar: `packages/classification/src/` completo\n2. Adaptar: los umbrales en `ClassificationConfig` son la única parametrización necesaria por tenant; la migración SQL requiere que las tablas `products` y `order_items` existan con las columnas esperadas\n3. Conectar: llamar `apply_classification_for_tenant` post-refresh de `pgl_by_product` o `sku_velocity`; la UI de override modal es reusable con mínimos cambios\n4. Validar: correr los 10 tests unitarios (`pnpm test`); verificar que la distribución P1/P2/P3/P4 tiene sentido para el catálogo del cliente (normalmente P1 no debería superar el 20%)",
+      "related_features": [
+        "sku-velocity-vista-materializada",
+        "motor-pl-order-economics-iva-ar",
+        "pgl-by-product-vista-materializada"
+      ],
+      "markdown_path": "knowledge/features/DATOS/clasificador-p1-p4-productos.md"
+    },
+    {
+      "slug": "clasificador-pagos-mp-8-categorias",
+      "title": "Clasificador rules-based de pagos MercadoPago (8 categorías)",
+      "summary": "Clasifica cada movimiento de MercadoPago (payments y money releases) en 8 categorías: `venta_normal`, `reembolso`, `full_perdido`, `transporte_perdido`, `seguro`, `unificacion`, `excepcional`, `otros`. ~40 líneas de TypeScript, sin dependencias externas, testeable standalone.",
+      "category_primary": "DATOS",
+      "category_secondary": [
+        "SOFTWARE"
+      ],
+      "repos_origin": [
+        "sur-tecnologia-meli"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: 0 dependencias, testeable en aislamiento, 40 líneas fáciles de auditar; cubre el caso de full_perdido y transporte_perdido que el panel de ML oculta; extensible sin riesgo"
+        ],
+        "cons": [
+          "Contras: rules-based (no LLM), puede fallar en casos edge no cubiertos por keywords; MP puede cambiar los strings de detail_type entre versiones de API sin aviso; no distingue entre reimbolsos totales y parciales automáticamente"
+        ]
+      },
+      "how_to_reuse": "1. Copiar: `packages/connectors/meli/src/classifier.ts` (archivo standalone)\n2. Adaptar: agregar keywords específicas del cliente si tiene tipos de movimiento no cubiertos; las 8 categorías son las estándar MeLi AR/CO/MX\n3. Conectar: llamar `classifyPayment` / `classifyMoneyRelease` en el worker de sync de pagos antes de persistir; agregar columna `categoria` a la tabla de pagos\n4. Validar: auditar los pagos clasificados como `otros` en las primeras 2 semanas; si superan el 5%, agregar keywords al clasificador",
+      "related_features": [
+        "idempotencia-journal-entries-cross-fuentes",
+        "motor-pl-order-economics-iva-ar"
+      ],
+      "markdown_path": "knowledge/features/DATOS/clasificador-pagos-mp-8-categorias.md"
+    },
+    {
+      "slug": "comision-real-global-selling-cbt-por-pais",
+      "title": "Modelo de Comisión Real Global Selling / CBT por país",
+      "summary": "Resuelve la comisión REAL de MercadoLibre para una cuenta Global Selling / Cross-Border Trade (CBT), tanto para el simulador de precios (comisión por categoría, prospectiva) como para la rentabilidad histórica (comisión efectiva sobre ventas ya cobradas). Dos caminos distintos según el dato disponible, ambos en USD.",
+      "category_primary": "DATOS",
+      "category_secondary": [
+        "STACK"
+      ],
+      "repos_origin": [
+        "traid-adrian"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: única vía correcta para CBT (los campos domésticos están en 0); corrige el sesgo de cuotas en MLA que rompe todo el P&L; parser puro sin red (testeable offline); USD uniforme cross-site simplifica el cálculo."
+        ],
+        "cons": [
+          "Contras: dos caminos distintos (prospectivo por categoría vs histórico por sale_fee) que hay que mantener coherentes; depende del token CBT con permisos /marketplace/*; el simulador es best-effort (cae al default si la API falla); no aplica a sellers domésticos (ahí va el charges-mapper)."
+        ]
+      },
+      "how_to_reuse": "1. Copiar: `lib/ml/listing-prices.ts` (parser puro, testeable offline) + el helper `listingPricesUrl` de `lib/ml/client.ts` + el job `mktfees` (y `mktorders`) de `scripts/backfill.ts`.\n2. Adaptar: el set `PREFERRED_TYPES` si el seller usa otro tipo de publicación; el `account_label` / `oauth_tokens` del cliente; el `onConflict` de `fees_raw` (`account_label,order_id,fee_type,fee_subtype`). Confirmar que la cuenta es CBT real (site=CBT, `/orders/search` da 0) — si vende doméstico, usar el mapper doméstico en su lugar.\n3. Conectar: en el simulador, llamar `resolveCategoryCommission` cuando `commission_mode='real'` y no haya override; para el histórico, correr `mktorders` → `mktfees` y refrescar las MVs de fees.\n4. Validar: comparar el % devuelto contra el reporte real de ML por site (MLA debe dar el % limpio, NO el inflado por cuotas — verificado en vivo 2026-06-07: 12.5% vs 24.8%). Para el histórico, cruzar la suma de `fees_raw` USD contra el fee% del dashboard.",
+      "related_features": [
+        "charges-mapper-jurisdicciones-ar",
+        "motor-pl-order-economics-iva-ar"
+      ],
+      "markdown_path": "knowledge/features/DATOS/comision-real-global-selling-cbt-por-pais.md"
+    },
+    {
+      "slug": "historico-precios-alertas-cambio",
+      "title": "Histórico de Precios + Alertas Nocturnas por Cambio",
+      "summary": "Guarda un snapshot append-only de precios (míos + competidor + sugerido ML + veredicto) por cada publicación y país en cada corrida del sync nocturno, habilitando la serie temporal. Compara cada corrida con la anterior y dispara alertas accionables SOLO cuando algo cambió: el competidor bajó, quedaste el más caro, o tu contribución pasó a negativa. Además muestra en el dashboard la \"última actualización\" y avisa si los datos están viejos (>24h).",
+      "category_primary": "DATOS",
+      "category_secondary": [
+        "AUTOMATIZACION"
+      ],
+      "repos_origin": [
+        "traid-adrian"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: change-based = cero ruido (no spamea el mismo estado cada noche); detector PURO y testeable (no toca DB); histórico append-only habilita tendencias sin re-arquitectura; frescura visible cierra el gap del refresh manual; el cron stalest-first + budget cabe en el límite de función de Vercel y es idempotente."
+        ],
+        "cons": [
+          "Contras: el alert_type está acoplado al CHECK constraint de alerts (agregar tipos requiere migración previa — ya mordió: sin_competidor no estaba en el CHECK); la calidad de las alertas depende de que el match de competencia sea correcto (un benchmark \"fantasma\" que iguala tu propio precio puede disparar perdiendo_highest falso — la UI lo neutraliza con isPhantomCompetitor, pero la raíz es el flag current del grafo de ML); el histórico crece sin retención (falta TTL/partición); el push a WhatsApp está modelado (channels) pero el envío real aún no está cableado (hoy channels: [\"dashboard\"])."
+        ]
+      },
+      "how_to_reuse": "1. Copiar: `lib/competencia/alerts.ts` (detector puro, sin deps de DB) + las migrations `20260607000003_catalog_competition_history.sql` y la tabla `alerts` de `20260527000001_cross_country_tracker.sql`. El route handler `app/api/cron/sync-competencia/route.ts` como plantilla del cron.\n2. Adaptar: el `CompetSnapshot` (campos `my_price_usd`, `comp_en_mano_usd`, `ml_benchmark_status`, `verdict`, `my_net_usd`) a las columnas que tenga tu tabla de competencia; los `alert_type` están atados al **CHECK constraint** de `alerts` — si agregás un tipo nuevo, migrá el CHECK primero o el INSERT falla. Los thresholds (`DROP_WARN=0.05`, `DROP_CRIT=0.15`) son tuneables.\n3. Conectar: en tu sync, antes del upsert leé el row anterior (línea base), llamá `detectCompetenciaAlerts(prev, next, ctx)`, acumulá los drafts y hacé batch insert a `alerts`. El INSERT al histórico va con el mismo `captured_at` del upsert. Wireá el cron en `vercel.json` (`crons[]`) apuntando al route handler.\n4. Validar: correr el sync 2 veces (1ra establece línea base sin alertas, 2da detecta cambios) y verificar que `catalog_competition_history` tenga N filas por corrida y `alerts` solo en transiciones. En el dashboard, confirmar que el banner muestra \"hace X\" y se pone ámbar pasadas 24h. Tests del detector: `tests/competencia-alerts.test.ts`.",
+      "related_features": [
+        "charges-mapper-jurisdicciones-ar",
+        "sync-competencia-stalest-first"
+      ],
+      "markdown_path": "knowledge/features/DATOS/historico-precios-alertas-cambio.md"
+    },
+    {
+      "slug": "idempotencia-journal-entries-cross-fuentes",
+      "title": "Patrón idempotencia journal_entries cross-fuentes",
+      "summary": "Garantiza que cuando múltiples fuentes (MercadoLibre realtime, MercadoPago polling, Google Sheets histórico, ingreso manual) escriben asientos al mismo libro contable, no se generan duplicados. Usa `idempotency_key` + `UNIQUE INDEX` parcial por `source` + pre-check antes del insert.",
+      "category_primary": "DATOS",
+      "category_secondary": [],
+      "repos_origin": [
+        "mati-satine-software"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: 0 duplicados incluso con múltiples workers en paralelo; idempotencia por diseño (no por coordinación); ON CONFLICT DO NOTHING es eficiente a escala"
+        ],
+        "cons": [
+          "Contras: el idempotency_key debe ser verdaderamente determinístico (si cambia el esquema de generación, puede duplicar o perder asientos); el pre-check agrega una query extra por asiento (aceptable a < 10K asientos/día); no cubre correcciones manuales que cambien el idempotency_key"
+        ]
+      },
+      "how_to_reuse": "1. Copiar: migraciones `0014_mp_settlement_idempotency_unique.sql` + `0019_journal_ml_tn_idem_unique.sql`; función `_shared/asientos-venta.ts`\n2. Adaptar: definir el esquema de `idempotency_key` para las fuentes del cliente nuevo; asegurarse de que todas las rutas de insert pasen por el módulo de asientos compartido\n3. Conectar: agregar el índice UNIQUE parcial en la migración inicial; propagar el patrón a todos los workers que escriben a `journal_entries`\n4. Validar: ejecutar dos syncs consecutivos del mismo período; la cantidad de asientos debe ser igual en ambas corridas",
+      "related_features": [
+        "charges-mapper-jurisdicciones-ar",
+        "motor-pl-order-economics-iva-ar"
+      ],
+      "markdown_path": "knowledge/features/DATOS/idempotencia-journal-entries-cross-fuentes.md"
+    },
+    {
+      "slug": "motor-forward-precio-en-mano-simulador",
+      "title": "Motor Forward de Precio + En-Mano (simulador de competitividad)",
+      "summary": "Parte del costo del producto + la ganancia deseada (USD fijo o % del costo) y **despeja** el precio de lista en ML — la comisión es % del lista, no del costo, así que es un despeje, no una suma. De ahí calcula el precio **en-mano** (precio final al comprador = lista + impuestos de importación, con envío gratis) y lo compara contra el competidor para decidir si conviene. El recálculo de margen/comisión/flete corre 100% en el cliente, sin roundtrip al server.",
+      "category_primary": "DATOS",
+      "category_secondary": [
+        "SOFTWARE"
+      ],
+      "repos_origin": [
+        "traid-adrian"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: módulo PURO reusable cliente+server (recálculo en vivo sin roundtrip, UX instantánea); despeje matemáticamente correcto (comisión sobre lista, no sobre costo — error común); en-mano consistente en todo el sistema (lista + impuestos, no efectivo post-promo); soporta comisión REAL de ML por categoría o manual; FX por publicación GS (no spot, evita ~7% de error en el neto)."
+        ],
+        "cons": [
+          "Contras: pensado para Global Selling / cross-border ML (régimen de impuesto de importación al comprador); el matching de competidores depende de datos en vivo — con token stand-in el catálogo /products/search puede devolver 0 candidatos (el path que SÍ trae precios es el discovery por Chrome de Sourcing); el net exacto bajo promo requiere la API seller-promotions (acceso colaborador) que hoy no se consume."
+        ]
+      },
+      "how_to_reuse": "1. **Copiar**: `lib/pricing/forward-price.ts`, `en-mano.ts`, `listing-economics.ts`, `recommend.ts` y los types relevantes de `lib/pricing/types.ts`. Son módulos puros — arrancan sin dependencias de infra. (`listing-economics.ts` importa `detectPromotion` de `lib/pricing/promotion.ts`; copiarlo también si se usa promo.)\n2. **Adaptar**: revisar `commission_pct` (en otro canal/categoría cambia), `flete_usd` (flete Miami→destino del cliente), y la fuente de `taxes_usd` (acá viene de `lib/tax` + API ML; en otro régimen se reemplaza el cálculo de impuesto de importación). La distinción lista vs efectivo aplica solo si hay promociones ML.\n3. **Conectar**: en una server action propia (patrón `run-simulation.ts`) wirear las deps reales (token ML con refresh+lock, FX, impuestos, modelo de confianza). En la UI cliente, importar `computeForwardPrice` directo en un componente `\"use client\"` y recomponer con `useMemo` sobre los controles editables para el recálculo en vivo.\n4. **Validar**: correr los tests `tests/lib/pricing/forward-price.test.ts`, `en-mano.test.ts`, `listing-economics.test.ts`, `recommend.test.ts`. La invariante `listed − commission − flete == net` y el round-trip forward↔inverso (`net_proceeds == net_usd` al mismo precio) deben pasar. Gate completo: `tsc` 0 errores + `next build` OK (server actions sync rompen en build aunque pasen tsc).",
+      "related_features": [
+        "charges-mapper-jurisdicciones-ar",
+        "motor-pl-order-economics-iva-ar",
+        "clasificador-p1-p4-productos"
+      ],
+      "markdown_path": "knowledge/features/DATOS/motor-forward-precio-en-mano-simulador.md"
+    },
+    {
+      "slug": "motor-pl-order-economics-iva-ar",
+      "title": "Motor P&L por orden / order_economics con IVA 21% AR",
+      "summary": "Calcula el P&L completo por cada orden MLA: ingreso bruto, comisión ML, IVA 21% sobre comisión/envío/fulfillment, costo de producto, costos fijos asignados, utilidad bruta y neta, margen %. Cada orden tiene su registro 1:1 en la tabla `order_economics`. Incluye vistas analíticas `v_product_margin_30d` y `v_business_kpis`.",
+      "category_primary": "DATOS",
+      "category_secondary": [
+        "SOFTWARE"
+      ],
+      "repos_origin": [
+        "agus"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: fórmula completa y documentada; vistas analíticas listas para el dashboard; IVA 21% AR correcto (no 19% como en otros países); portado a traid-meli-platform con mejoras"
+        ],
+        "cons": [
+          "Contras: requiere seed de ml_category_fees (~200 filas por site); si no hay product_costs cargados, margen_neto es incorrecto; el IVA sobre comisión/envío es un campo que ML no desglosa directamente (se estima)"
+        ]
+      },
+      "how_to_reuse": "1. Copiar: migration `20260311000000_initial_schema.sql` (extrayendo solo `order_economics` y sus vistas)\n2. Adaptar: cambiar IVA al del país del cliente (21% AR, 16% MX, 19% CO); ajustar `site_id` en la fórmula si es otro país; seed de `ml_category_fees` con la tabla de comisiones por categoría del nuevo site\n3. Conectar: disparar el cálculo en el worker post-sync de pagos; alimentar con `product_costs` actualizados\n4. Validar: la suma de `margen_neto` en `v_business_kpis` debe coincidir con el estado de resultados del cliente en ±5% (diferencia por costos fijos no asignados)",
+      "related_features": [
+        "charges-mapper-jurisdicciones-ar",
+        "pgl-by-product-vista-materializada",
+        "clasificador-p1-p4-productos"
+      ],
+      "markdown_path": "knowledge/features/DATOS/motor-pl-order-economics-iva-ar.md"
+    },
+    {
+      "slug": "motor-pricing-inverso-costo-neto-pais",
+      "title": "Motor de Pricing Inverso (costo → neto por país)",
+      "summary": "`computeNetFromPrice` parte del **precio de venta de referencia** (el competidor más barato en ML de cada país) y, con el **costo conocido a mano**, despeja la economía del vendedor: comisión = `precio × comisión%`, neto recibido = `precio − comisión − flete`, ganancia neta de todos los gastos = `neto − costo`, y margen sobre costo y sobre precio. Es el **inverso** del motor forward (`computeForwardPrice`, que va del margen deseado al precio) y reproduce el Excel del seller (`Comparativa Product",
+      "category_primary": "DATOS",
+      "category_secondary": [
+        "SOFTWARE"
+      ],
+      "repos_origin": [
+        "traid-adrian"
+      ],
+      "reusability": "alta",
+      "status": "staging",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: motor puro y testeado (corre en server y cliente, recompute instantáneo sin roundtrip); agnóstico a país/moneda; reproduce 1:1 el Excel que el seller ya usa (adopción inmediata, cero fricción de confianza); inverso verificado del forward (un solo modelo coherente en ambas direcciones)."
+        ],
+        "cons": [
+          "Contras: solo modela la economía del seller — el impuesto de importación no entra (correcto, lo paga el comprador, pero hay que explicarlo o se confunde con el precio final); depende de tener un precio de competidor confiable (el motor de matching del Supplier por catalog /products/search devuelve 0 con el token stand-in; la vía que sí trae precios en vivo es Sourcing por Chrome); la comisión% es input, no la trae sola (se siembra de ML real por categoría o manual)."
+        ]
+      },
+      "how_to_reuse": "1. Copiar: `lib/pricing/net-from-price.ts` + las interfaces `NetFromPriceInput`/`NetFromPriceResult` de `lib/pricing/types.ts`. Para un worker sin bundler de workspaces, copiar el motor inline (ver `worker/sourcing-agent/src/shared/net-from-price.ts`).\n2. Adaptar: ajustar el alias de import (`@/lib/pricing/types`). El motor es agnóstico a moneda y país — solo necesita `sell_price_usd`, `cost_usd`, `commission_pct`, `flete_usd` en USD; la conversión a local es del consumidor.\n3. Conectar: alimentar `sell_price_usd` con el precio del competidor más barato (de `catalog_competition`, benchmarks ML, o discovery por Chrome) y `commission_pct` con la comisión real de ML por categoría (o manual). Renderizar con una card tipo `MatchCheapestCard` si querés recompute en vivo.\n4. Validar: correr `tests/lib/pricing/net-from-price.test.ts` (reproduce los números del Excel del seller). En la UI, verificar que el round-trip cierre: si vendés al precio que el motor forward calculó para una ganancia X, el inverso debe devolver `profit ≈ X`.",
+      "related_features": [
+        "motor-pl-order-economics-iva-ar",
+        "charges-mapper-jurisdicciones-ar"
+      ],
+      "markdown_path": "knowledge/features/DATOS/motor-pricing-inverso-costo-neto-pais.md"
+    },
+    {
+      "slug": "pgl-by-product-vista-materializada",
+      "title": "Vista materializada pgl_by_product (P&L por producto)",
+      "summary": "Vista materializada Postgres que agrega por producto × canal × variante: GMV, costo de producto, comisión ML, envío, fulfillment, publicidad, devoluciones y bonificaciones. Es la fuente única de verdad para rentabilidad por SKU. Se refresca con `REFRESH CONCURRENTLY` para no bloquear lecturas.",
+      "category_primary": "DATOS",
+      "category_secondary": [
+        "STACK"
+      ],
+      "repos_origin": [
+        "sur-tecnologia-meli"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: REFRESH CONCURRENTLY no bloquea lecturas en producción; sale_fee exacto elimina estimaciones; SECURITY DEFINER resuelve el problema de permisos en Supabase; reutilizable sin cambios para cualquier país MeLi"
+        ],
+        "cons": [
+          "Contras: requiere que product_costs esté cargado para que la columna costo_producto sea correcta; si ml_billing retorna 404 (como en SUR CO), la publicidad queda en 0; lógica defensiva de deduplicación de product_listings indica que el constraint no es estricto"
+        ]
+      },
+      "how_to_reuse": "1. Copiar: migraciones `20260601000004_pgl_by_product_view.sql` + `20260601000006_pgl_by_product_sale_fee_v2.sql`\n2. Adaptar: si el cliente no tiene `ml_billing`, quitar o nullear las columnas de publicidad; cambiar `tenant_id` hardcodeado por el del cliente nuevo\n3. Conectar: agregar llamada a `refresh_pgl_view()` al final de cada sync de órdenes y al guardar costos\n4. Validar: comparar totales de GMV en la vista vs. suma directa de `order_items`; diferencia < 0.1% es aceptable (deduplicación defensiva de `product_listings`)",
+      "related_features": [
+        "sku-velocity-vista-materializada",
+        "motor-pl-order-economics-iva-ar",
+        "charges-mapper-jurisdicciones-ar"
+      ],
+      "markdown_path": "knowledge/features/DATOS/pgl-by-product-vista-materializada.md"
+    },
+    {
+      "slug": "senal-buybox-ml",
+      "title": "Señal Buy-Box de MercadoLibre (precio sugerido + posición)",
+      "summary": "Lee el benchmark oficial de ML (Global Selling) por publicación y extrae dos señales: el **precio sugerido** (a cuánto listar para ser competitivo) y la **posición/status** del catálogo (`with_benchmark_high` = caro, `with_benchmark_highest` = el más caro, `with_benchmark_low/lowest` = competitivo / el más barato). Las persiste en `catalog_competition` y las muestra en el tab Precio como contraste contra el veredicto propio de rentabilidad (piso/techo).",
+      "category_primary": "DATOS",
+      "category_secondary": [
+        "SOFTWARE"
+      ],
+      "repos_origin": [
+        "traid-adrian"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: señal oficial de ML (máxima credibilidad para el cliente); parser puro testeado y reusable; se persiste como serie temporal (_history) → habilita alertas \"ML te marcó el más caro\"; valida de forma independiente el veredicto propio piso/techo."
+        ],
+        "cons": [
+          "Contras: solo aplica a cuentas Global Selling / CBT (endpoint /marketplace/benchmarks, monto en usd_amount); suggested_price y status no siempre vienen (no_benchmark* → sin señal); el flag current del grafo puede faltar (0/217 en data real) → hay que tratar no_benchmark como \"sin competidor\" en la capa UI o se muestra tu propio precio como rival; depende del sync nocturno (no es tiempo real)."
+        ]
+      },
+      "how_to_reuse": "1. Copiar: `lib/ml/parse-benchmark.ts`, `lib/ml/types.ts`, `lib/pricing/parse-graph.ts`, `lib/pricing/recommend.ts` y el bloque de fetch+persistencia del benchmark de `lib/competencia/sync-competencia.ts` (líneas del `/marketplace/benchmarks/items/{id}/details`).\n2. Adaptar: la cuenta tiene que ser **Global Selling / CBT** — el endpoint vive bajo `/marketplace/...` y el monto autoritativo es `usd_amount` (NO `usd_equivalent`). Para una cuenta ML local clásica (no CBT) el shape del benchmark difiere; revisar `BenchmarkApiResponse`. Token ML siempre fresco por call (rota en cada uso).\n3. Conectar: agregar las 4 columnas `ml_*` a la tabla de competencia (migración `20260607000002`, es un ALTER — la tabla ya debe tener RLS service-role) y enganchar el fetch dentro del loop del sync que ya recorre tus publicaciones. En la UI, leer las columnas a un map y renderizar la señal bajo tu propio precio sugerido.\n4. Validar: correr `scripts/sync-cross-country.ts` / el cron y confirmar que `ml_benchmark_status` y `ml_suggested_price_usd` se pueblan; en el tab Precio debe aparecer \"ML: $X · {posición}\" en las filas con benchmark. Cuando `status` arranca con `no_benchmark`, NO debe mostrarse señal (evita el competidor fantasma — el grafo devuelve tu propia publicación si falta el flag `current`).",
+      "related_features": [
+        "precio-recomendado-piso-techo-ml",
+        "matching-competidores-cross-country-ml",
+        "alertas-competencia-ml"
+      ],
+      "markdown_path": "knowledge/features/DATOS/senal-buybox-ml.md"
+    },
+    {
+      "slug": "sku-velocity-vista-materializada",
+      "title": "Vista materializada sku_velocity (velocidad, rotación y stockout)",
+      "summary": "Vista materializada Postgres que calcula por SKU: velocidad de venta (unidades/día) en ventanas de 7d, 30d y 90d; rotación (ventas/stock); días de cobertura; y trend (comparación 7d vs 30d). Incluye 4 índices optimizados para queries de analytics. Base del módulo de alertas de stockout.",
+      "category_primary": "DATOS",
+      "category_secondary": [
+        "STACK"
+      ],
+      "repos_origin": [
+        "sur-tecnologia-meli"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: SQL genérico, no depende del canal (MeLi, WooCommerce, Tienda Nube); los 4 índices incluidos son los óptimos para las queries de analytics; REFRESH CONCURRENTLY no bloquea"
+        ],
+        "cons": [
+          "Contras: requiere tabla inventory con stock actualizado (si el stock no se sincroniza, cobertura_dias es ficticia); las ventanas de tiempo son fijas (7/30/90d), requiere modificar la migración para cambiarlas"
+        ]
+      },
+      "how_to_reuse": "1. Copiar: migración `20260601000005_sku_velocity_view.sql`\n2. Adaptar: ajustar el join de `product_listings` si el schema del cliente es distinto; verificar que `inventory` tenga columna de stock numérica\n3. Conectar: agregar `refresh_sku_velocity_view()` al final del sync de órdenes e inventario; consumir desde `analytics.ts` o queries propias\n4. Validar: un SKU con `cobertura_dias < 7` y `velocity_30d > 0` debe aparecer en la vista de riesgo stockout; testear con datos de un período corto",
+      "related_features": [
+        "pgl-by-product-vista-materializada",
+        "clasificador-p1-p4-productos"
+      ],
+      "markdown_path": "knowledge/features/DATOS/sku-velocity-vista-materializada.md"
+    },
+    {
+      "slug": "tax-engine-importacion-tiers-cross-country",
+      "title": "Tax Engine de Importación por Tiers (cross-country AR/MX)",
+      "summary": "Dado un precio en USD y un site de MercadoLibre (MLA, MLM, etc.), resuelve la regla tax activa a una fecha (versionada en DB) y calcula el impuesto de importación aplicando el tier/umbral correcto (ej. ~10.5% bajo USD 400, ~17.4% arriba en MLA). Output: `{ taxes_usd, source, tier_label, effective_pct }`.",
+      "category_primary": "DATOS",
+      "category_secondary": [
+        "SOFTWARE"
+      ],
+      "repos_origin": [
+        "traid-adrian"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: reglas tax versionadas en DB (cambian sin redeploy, con histórico auditable por effective_from); separación pura/IO (computeTaxes y pickActiveRule son funciones puras testeables, el IO está aislado en lookup); defensivo ante tiers vacíos/drift de seed; agnóstico al país (mismo código, distinto seed); ya endurecido por review adversarial (jury)."
+        ],
+        "cons": [
+          "Contras: las tasas son estimaciones efectivas calibradas por scraping de publicaciones reales (MLA verificado contra la página del consumidor; MLM confianza media porque mercadolibre.com.mx exige login) — no son la ley aduanera literal y hay que revalidar; el umbral de franquicia (USD 400 MLA) está calibrado aproximado entre observaciones; solo cubre rule_type='tiered' en la práctica (el enum admite percentage/franchise pero no hay engine para esos); requiere mantener el seed al día cuando ML cambia régimen."
+        ]
+      },
+      "how_to_reuse": "1. Copiar: `lib/tax/{types,compute-taxes,lookup,lookup-admin}.ts` + la migración que crea `country_taxes` (la sección `country_taxes` de `20260527000001_cross_country_tracker.sql`) + una migración de seed con los tiers del país.\n2. Adaptar: `SiteId` (agregar/quitar sites en `types.ts`); los tiers reales por país en el seed (calibrar con evidencia: las tasas de ML cambian régimen Global Selling vs courier — ver notas de la migración reseed); `lookup.ts` importa `@/lib/supabase/admin` (ajustar al helper de Supabase del repo destino).\n3. Conectar: en el server action / worker que calcula precio landed o margen, llamar `const rule = await fetchActiveRule(site, new Date())` y `computeTaxes(rule, priceUsd).taxes_usd`. Para scripts batch usar `fetchActiveRuleAdmin(sb, site, asOf)` y cachear la regla por site.\n4. Validar: correr `vitest` sobre `tests/lib/tax/` (cubre tiers, bordes de umbral, precio 0, precio negativo, tier sin `to`). Verificar en DB que hay una fila `country_taxes` activa por site (`effective_from <= hoy`). El caller debe tolerar `null`/throw degradando a impuesto desconocido, no romper el flujo.",
+      "related_features": [
+        "charges-mapper-jurisdicciones-ar",
+        "motor-pl-order-economics-iva-ar"
+      ],
+      "markdown_path": "knowledge/features/DATOS/tax-engine-importacion-tiers-cross-country.md"
+    },
+    {
+      "slug": "pipeline-sicar-ordenes-sync-multicanal-rls",
+      "title": "Pipeline SICAR → órdenes sync multi-canal con Supabase RLS",
+      "summary": "Pipeline completo que sincroniza stock desde SICAR (ERP del proveedor via `drixservices/inventory`) a Supabase, calcula stock efectivo descontando ventas ML + WooCommerce, y publica el stock actualizado a ambos canales. Incluye fail-safe anti-stale data, divergence log, y protección RLS por tenant. Estándar TRAID: `CRON_SECRET` + endpoint sync.",
+      "category_primary": "N8N",
+      "category_secondary": [
+        "AUTOMATIZACION",
+        "DATOS"
+      ],
+      "repos_origin": [
+        "diego-erp"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: fail-safe anti-stale evita publicar stock incorrecto por fallas del ERP; divergence log permite auditoría; el patrón CRON_SECRET + endpoint es el estándar TRAID para todos los proyectos; soporta packs (base_product_id)"
+        ],
+        "cons": [
+          "Contras: el conector drixservices es específico al ERP de Diego; cambiar de ERP requiere reescribir src/app/api/sicar/ completo; la Full-aware logic para ML Fulfillment es compleja (requiere revisión para cada cliente)"
+        ]
+      },
+      "how_to_reuse": "1. Copiar: `src/app/api/sicar/` + `src/app/api/stock/effective-sync/` + 3 migraciones (`*_sicar_stock.sql`, `*_stock_efectivo*.sql`)\n2. Adaptar: cambiar `WC_STORE_URL` / `WC_CONSUMER_KEY` / `WC_CONSUMER_SECRET`; reemplazar el cliente de `drixservices` por la API del ERP del cliente nuevo; revisar la Full-aware logic si el cliente no usa Fulfillment ML\n3. Conectar: crear el workflow n8n con schedule cada 2h + Bearer token; configurar el CRON_SECRET en Vercel + n8n\n4. Validar: ejecutar un sync manual y verificar `stock_effective_sync_runs` con status `success`; comparar stock en ML y WooCommerce vs. `sicar_stock_current - ventas`; revisar `stock_divergence_log` (debe estar vacío o con divergencias < 2%)",
+      "related_features": [
+        "ml-client-oauth-mutex-retry",
+        "idempotencia-journal-entries-cross-fuentes"
+      ],
+      "markdown_path": "knowledge/features/N8N/pipeline-sicar-ordenes-sync-multicanal-rls.md"
+    },
+    {
+      "slug": "sync-google-sheets-supabase-service-account-deno",
+      "title": "Sync Google Sheets → Supabase con Service Account JWT (Deno)",
+      "summary": "3 Edge Functions Deno que sincronizan 8 tabs de Google Sheets a Supabase sin OAuth del usuario final: autenticación via Service Account JWT, paged reader para 50K+ rows, parser `parseARSNumber` para formato ARS (coma decimal, punto de miles), insert concurrente por chunks.",
+      "category_primary": "N8N",
+      "category_secondary": [
+        "DATOS",
+        "AUTOMATIZACION"
+      ],
+      "repos_origin": [
+        "mati-satine-software"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: sin OAuth del usuario final (cero friction de autorización); paged reader soporta cualquier tamaño de Sheet; parseARSNumber resuelve el problema de formato ARS automáticamente; la arquitectura EF + n8n scheduler es escalable"
+        ],
+        "cons": [
+          "Contras: requiere que el cliente comparta el Sheet con el email de la Service Account (un paso manual inicial); si ML cambia el formato de un tab, hay que actualizar el mapper; la Fase D de eliminación del Sheet fue revertida en Satiné — el Sheet sigue siendo fuente de verdad activa mientras el cliente quiera"
+        ]
+      },
+      "how_to_reuse": "1. Copiar: las 3 EFs + `src/lib/google-sheets/readers.ts` + `src/lib/google-sheets/to-supabase.ts`\n2. Adaptar: cambiar `GOOGLE_SHEETS_ID` en env; reescribir los mappers en `to-supabase.ts` según las columnas del Sheet del cliente nuevo; ajustar el nombre de los tabs en `readers.ts`\n3. Conectar: compartir el Sheet con el email de la Service Account; crear el workflow n8n con schedule + HTTP Request a la EF + Bearer token\n4. Validar: correr la EF manualmente con `supabase functions invoke sync-sheets`; verificar que el conteo de filas en Supabase coincide con el Sheet",
+      "related_features": [
+        "idempotencia-journal-entries-cross-fuentes"
+      ],
+      "markdown_path": "knowledge/features/N8N/sync-google-sheets-supabase-service-account-deno.md"
+    },
+    {
+      "slug": "analisis-masivo-excel-batch-worker",
+      "title": "Análisis Masivo por Excel (batch sourcing con worker)",
+      "summary": "El proveedor descarga una plantilla `.xlsx` nativa, la completa con `[producto, costo_usd]` (+ columnas opcionales), la sube y el sistema crea un **batch** que abre un job por producto y los analiza **en paralelo** en cada país seleccionado. Devuelve, por producto×región, el competidor más barato, el precio de mercado, el **margen que le queda al vendedor** y un veredicto (conviene / al límite / no conviene / sin competidor). Resultados en grilla, filtro \"solo las que convienen\" y **export `.xls",
+      "category_primary": "SOFTWARE",
+      "category_secondary": [
+        "AUTOMATIZACION"
+      ],
+      "repos_origin": [
+        "traid-adrian"
+      ],
+      "reusability": "alta",
+      "status": "staging",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: .xlsx nativo (no CSV pelado — el proveedor abre/edita en Excel sin romper formato); fan-out reusa la cola del worker (throttling, cap de RAM y concurrencia ya resueltos); poll desacoplado del worker (lee Supabase directo, sobrevive si el worker reinicia); validación honesta por fila con motivo + nº de fila; exceljs cargado lazy (no infla el bundle del page load); margen como resultado evita que el usuario \"se invente\" el número."
+        ],
+        "cons": [
+          "Contras: depende de un worker externo desplegado (Dokploy) + WORKER_SECRET — sin eso la feature está muerta (503); cada producto tarda ~1-3 min (análisis real ML/Vertex por país), no es instantáneo; cap MAX_BATCH_ROWS=200; el resultado final depende de que el motor de sourcing traiga competidores (la ruta Supplier por catálogo puede devolver 0 con tokens stand-in — el path que sí trae precios vivos es el discovery por Chrome)."
+        ]
+      },
+      "how_to_reuse": "1. **Copiar**:\n   - UI: `app/dashboard/sourcing/batch/page.tsx`\n   - Fachada: `app/api/sourcing/batch/route.ts`\n   - Worker: `worker/sourcing-agent/src/shared/batch-parse.ts`, los handlers `/sourcing/batch` de `server.ts`, `createBatch`/`getBatch` de `supabase.ts`\n   - Migración: `supabase/migrations/20260607000001_research_batches.sql`\n2. **Adaptar**:\n   - `TEMPLATE_COLUMNS` / `RawBatchRow` / `parseBatchRows` al dominio (qué columnas pide la plantilla y qué es obligatorio)\n   - El `RunInput` y el motor que cada job ejecuta — acá es sourcing ML multi-país; en otro repo es el cómputo que se quiera fan-out-ear\n   - `getCurrentAccount` / `account_label` al multi-tenant del repo destino\n3. **Conectar**:\n   - Setear `WORKER_URL` + `WORKER_SECRET` (vía Infisical) — sin ellos la fachada devuelve **503** (\"worker no configurado\")\n   - El worker debe tener una **cola** preexistente (este patrón la reusa, no la crea)\n   - Aplicar la migración y agregar la entry en el sidebar\n4. **Validar**:\n   - `next build` (Next 16 — confirmar que imprime \"Proxy (Middleware)\") + `tsc --noEmit` + `vitest` (hay `tests/batch-parse.test.ts` en el worker)\n   - Smoke: bajar la plantilla, completar 2 filas, subir, ver que `total_rows` y los jobs aparecen en `research_batches`/`research_jobs`, y que el export `.xlsx` abre en Excel",
+      "related_features": [
+        "sourcing-discovery-chrome-real",
+        "net-from-price-inverso-comision",
+        "sourcing-agent-worker-dokploy"
+      ],
+      "markdown_path": "knowledge/features/SOFTWARE/analisis-masivo-excel-batch-worker.md"
+    },
+    {
+      "slug": "arbitraje-dropshipping-amazon-ml",
+      "title": "Arbitraje Dropshipping Amazon US vs Mercado Libre",
+      "summary": "Toma cada publicación que el seller vende en Mercado Libre, le busca el mismo producto en Amazon US (match GTIN→ASIN + título), y calcula el margen de arbitraje: bruto (precio ML − costo Amazon) y neto (descontando landed cost estimado: impuesto US, prep, flete, comisión ML). Lo deja en un tablero operativo donde el operador mueve cada candidato por estados (`candidate → sourcing → ordered → discarded`).",
+      "category_primary": "SOFTWARE",
+      "category_secondary": [
+        "AUTOMATIZACION"
+      ],
+      "repos_origin": [
+        "traid-adrian"
+      ],
+      "reusability": "alta",
+      "status": "staging",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: convierte el catálogo ML existente en una lista de compra accionable con margen calculado; landed cost realista (no solo Δ bruto); en-mano por país evita recomendar productos invendibles; estados operativos = workflow real de sourcing; RLS inline + multi-tenant por account_label; el scraper Playwright es plan B cuando la API/SerpApi no trae precio."
+        ],
+        "cons": [
+          "Contras: depende de SERPAPI_KEY (costo por búsqueda) y de un token ML vivo de la cuenta — sin eso el tablero queda vacío; el matching GTIN/título es heurístico (overlap ≥ 0.4) y puede dar falsos positivos en productos genéricos; el landed cost usa parámetros fijos (prep/ship/tax) que hay que calibrar por cliente; Amazon localiza por IP y bloquea scraping (de ahí el storage-state + ZIP); pensado para cuentas CBT en USD (asume currency_id=\"USD\")."
+        ]
+      },
+      "how_to_reuse": "1. Copiar: `scripts/dropship-build-candidates.mjs`, las dos migraciones `20260527000001/02_dropship_candidates*.sql`, la ruta completa `app/dashboard/dropshipping/` y (opcional) `scripts/amazon-price-scraper/`.\n2. Adaptar:\n   - `SERPAPI_KEY` propio; parámetros del landed cost (`COMMISSION_PCT`, `PREP_USD`, `SHIP_USD`, `US_TAX_PCT`) según la operación del cliente.\n   - El pipeline asume el patrón multi-cuenta `oauth_tokens(account_label, provider)` y publicaciones en USD (CBT) — si la cuenta vende en moneda local, ajustar el filtro `currency_id === \"USD\"` y la conversión.\n   - El en-mano depende de la tabla `country_taxes` con tiers por site; si el repo destino no la tiene, esa señal queda en \"—\" (no rompe).\n3. Conectar: aplicar las migraciones (RLS service_role ya inline), correr `node --env-file=.env.local scripts/dropship-build-candidates.mjs` (cron o manual), y enganchar la ruta en el sidebar del dashboard. La server action usa `requireSession()` + `account_label` para el tenant.\n4. Validar: la tabla `dropship_candidates` debe poblarse; en el tablero los KPIs dejan de estar en cero y las filas muestran Δ bruto / margen neto / origen del match (auto vs IA). Si la tabla no existe, el page muestra un banner honesto pidiendo aplicar la migración.",
+      "related_features": [
+        "motor-repricing-semaforo-7-estados",
+        "motor-pl-order-economics-iva-ar"
+      ],
+      "markdown_path": "knowledge/features/SOFTWARE/arbitraje-dropshipping-amazon-ml.md"
+    },
+    {
+      "slug": "cross-country-tracker-competencia-impuestos",
+      "title": "Cross-Country Tracker (competencia bajo misma estructura de impuestos)",
+      "summary": "Compara, publicación por publicación y país por país, el **precio final (precio + impuestos)** del seller contra el del competidor real bajo el **mismo régimen tributario** (local = all-in; cross-border = tu mismo régimen), en dual-currency local + USD. Genera un veredicto por fila (Liderás / Perdés / Justo / sin competidor) y dispara alertas accionables cuando cambia la competitividad.",
+      "category_primary": "SOFTWARE",
+      "category_secondary": [
+        "DATOS"
+      ],
+      "repos_origin": [
+        "traid-adrian"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: compara manzanas con manzanas (precio en mano bajo el mismo régimen, no precio de lista); dual-currency local + USD; mata el competidor fantasma; FX honesto (ratio GS, no 1:1); alertas change-based (no spamea); sync idempotente y stalest-first que cabe en el límite de función de Vercel."
+        ],
+        "cons": [
+          "Contras: depende de token OAuth de cuenta CBT/Global Selling (sin ese token el benchmark no se puebla — fue el bloqueo de Milestone B en traid-adrian); el matching de competidores usa Gemini → costo + latencia por ítem (por eso budget de tiempo); el flag current del grafo de benchmark puede no llegar en cuentas reales (revisar parse-benchmark); hoy cubre los sitios cableados (MLA/MLM/MLC/MLB/MCO), agregar país = mapear su tax/FX."
+        ]
+      },
+      "how_to_reuse": "1. Copiar: carpeta `app/dashboard/competencia/` completa (page + `_tabs/` + `_components/`), `app/dashboard/cross-country/[item_id]/`, `lib/competencia/*`, el cron `app/api/cron/sync-competencia/route.ts`, y la migración `cross_country_tracker.sql`.\n2. Adaptar: el set de sitios destino (`SITE_NAME`/`SITE_CODE`: MLA/MLM/...), el `account_label` del cliente, las dependencias de matching/FX (`lib/matching/competition-candidates`, `lib/pricing/fx*`, `lib/pricing/listing-economics`) y los helpers compartidos (`getCurrentAccount`, `createAdminClient`, `pickDisplayTitle`, `sellerListingUrl`).\n3. Conectar: agendar el cron en `vercel.json` (Vercel manda `Authorization: Bearer $CRON_SECRET` / `x-vercel-cron`), proveer token OAuth ML del seller (cuenta CBT/Global Selling) y poblar `catalog_competition` con un backfill inicial (`scripts/sync-catalog-competition.ts`).\n4. Validar: correr `scripts/qa-validate-competencia.ts` + `qa-validate-paused-items.ts`; en la UI confirmar que el banner muestra \"Sincronizado hace X\", que no aparece competidor fantasma (`comp_price_usd` null sin benchmark) y que los KPIs (Liderás/Perdés, con competidor) cuadran.",
+      "related_features": [
+        "motor-repricing-semaforo-7-estados",
+        "charges-mapper-jurisdicciones-ar"
+      ],
+      "markdown_path": "knowledge/features/SOFTWARE/cross-country-tracker-competencia-impuestos.md"
+    },
+    {
+      "slug": "margen-resultado-juez-golden-set",
+      "title": "Margen=RESULTADO + Modelo de Costos ML + Juez validado por Golden Set",
+      "summary": "Invierte el modelo de pricing: el margen deja de ser un input del cliente y pasa a ser el RESULTADO. El seller pone el costo y el sistema calcula, al precio del competidor más barato por país, la comisión real de ML + flete + impuestos, devuelve el margen que le queda y un veredicto (conviene/límite/no-va). El \"competidor más barato\" lo elige un juez de similitud (Gemini) que está validado contra un golden set etiquetado con un gate de accuracy.",
+      "category_primary": "SOFTWARE",
+      "category_secondary": [
+        "DATOS"
+      ],
+      "repos_origin": [
+        "traid-adrian"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: el seller no inventa un margen objetivo (menos fricción, menos error); usa la comisión REAL por país (el Excel con 8% subestimaba la comisión y sobreestimaba el margen); el juez deja de ir a prod a ciegas (gate honesto, \"el verificador es el producto\"); módulos puros y testeables sin red; el auditor evita presentar competidores muertos o fantasma."
+        ],
+        "cons": [
+          "Contras: el juez de similitud depende de Vertex/Gemini (costo + latencia por caso) y de la calidad del golden set (40 casos hoy, objetivo 80-100 balanceados); las comisiones Premium son la base por país, el refinamiento exacto por categoría es follow-up; el worker async (Chrome real bajo Xvfb en Dokploy) tiene un bug abierto de cuelgue en multi-país cache-miss; el impuesto de importación queda fuera del neto del seller (correcto para CBT, revisar si el cliente vende local)."
+        ]
+      },
+      "how_to_reuse": "1. Copiar: `recommend-price.ts` + `net-from-price.ts` + `ml-fees.ts` (los 3 puros, sin deps server) y, si hay matching de notebooks, `lib/matching/processor-equivalence.ts`. Para el juez: `similarity.ts` + `audit.ts` + todo `eval/` (`run-eval.ts` + `golden-similarity.jsonl`).\n2. Adaptar: `COMMISSION_PREMIUM_BY_SITE` con las comisiones reales del marketplace/categoría del cliente (verificar live, no copiar el % del Excel); el umbral `minConveniencePct` según la regla del seller; el golden set con casos reales del cliente (sobre todo los que el juez falla en logs de prod — ampliarlo es el mayor ROI).\n3. Conectar: el nodo `economics` necesita `cheapest`+`fx` por país (de la capa de discovery/benchmark) y el flete por región; `recommend` consume `margin_on_cost_pct`. El eval necesita credenciales Vertex (ADC o SA JSON).\n4. Validar: `npm run typecheck && npm test` (los puros tienen tests de round-trip vs el forward y reproducen el Excel del seller); `npm run eval` para confirmar accuracy binaria ≥ umbral; round-trip: el neto del inverso debe igualar el neto del forward al mismo precio.",
+      "related_features": [
+        "motor-pricing-inverso-costo-neto-pais",
+        "comision-real-global-selling-cbt-por-pais",
+        "motor-forward-precio-en-mano-simulador"
+      ],
+      "markdown_path": "knowledge/features/SOFTWARE/margen-resultado-juez-golden-set.md"
+    },
+    {
+      "slug": "motor-repricing-semaforo-7-estados",
+      "title": "Motor de Repricing con Semáforo 7 Estados",
+      "summary": "",
+      "category_primary": "SOFTWARE",
+      "category_secondary": [
+        "AUTOMATIZACION",
+        "DATOS"
+      ],
+      "repos_origin": [
+        "lubbi-erp"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Requiere costos cargados para recomendaciones útiles; sin costos el semáforo es parcialmente ciego",
+          "El modo auto puede aplicar cambios masivos — recomendado arrancar con aprobación manual",
+          "Versión de diego-erp tiene función decideMotor() ligeramente diferente (política configurable por argumento); preferir lubbi-erp como base"
+        ],
+        "cons": []
+      },
+      "how_to_reuse": "1. Copiar `src/lib/repricing/` completo\n2. Adaptar `repricing_config` en DB: ajustar comisión y moneda por país (MLA=13%, MLM, MLC, etc.)\n3. Conectar al token ML del proyecto para endpoint `apply-to-ml`\n4. Validar con costos reales cargados — sin costos, todos los productos quedan en estado `blocked`",
+      "related_features": [
+        "webhook-ingest-queue-durable",
+        "patron-fetch-process-split-rate-limit"
+      ],
+      "markdown_path": "knowledge/features/SOFTWARE/motor-repricing-semaforo-7-estados.md"
+    },
+    {
+      "slug": "endpoints-global-selling-cbt-ml",
+      "title": "Integración Global Selling / CBT de MercadoLibre (endpoints + gotchas)",
+      "summary": "Mapea el grafo CBT/Global Selling de ML: un item padre `CBT...` que se publica como N hijos (uno por país: MLA, MLM, MLB, MCO, MLC, MLU, MPE) y resuelve sus ventas, comisiones (fees) y benchmarks cross-country. Resultado: ventas y benchmarks de cada hijo guardados **bajo el item CBT padre** para que el join padre↔país sea consistente en Supabase.",
+      "category_primary": "STACK",
+      "category_secondary": [
+        "DATOS"
+      ],
+      "repos_origin": [
+        "traid-adrian"
+      ],
+      "reusability": "alta",
+      "status": "staging",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: cubre un caso que casi nadie modela (margen real cross-border por país con un solo seller CBT); endpoints CBT correctos ya descubiertos y validados (ahorra el día de prueba-y-error de los 403/0-results); USD uniforme simplifica el P&L; el validador pre-firma evita cobrar un Mes 1 que la API no soporta."
+        ],
+        "cons": [
+          "Contras: requiere token colaborador de CADA cuenta hija — el token merchant CBT lee /items/{CBT}/marketplace_items pero un GET /items/{hijo} directo da 403 (por eso es pre-flight \"acceso colaborador ambas cuentas ML\"); dependés de que ML exponga benchmarks por site (puede dar PARCIAL/STOP); rate-limit agresivo (sleeps 250-600ms + backoff en 429/5xx, los 502/503 de /marketplace/benchmarks son frecuentes); marketplace_fee/charges_details no sirven en CBT (rama distinta a MLA/MCO)."
+        ]
+      },
+      "how_to_reuse": "1. Copiar: `lib/ml/client.ts`, `lib/ml/token-manager.ts`, `lib/ml/parse-benchmark.ts`, `lib/ml/types.ts`, `scripts/sync-cross-country.ts`, `scripts/backfill.ts`, `scripts/t1-prefirma-validator.ts`.\n2. Adaptar: `account_label` y las vars `ML_CLIENT_ID_*` / `ML_CLIENT_SECRET_*` por cliente; las tablas `oauth_tokens`, `items_raw`, `orders_raw`, `fees_raw`, `benchmarks_snapshots` (migrations Supabase); la lista de `SITES` destino.\n3. Conectar: correr `t1-prefirma-validator.ts` PRIMERO (gate GO/PARCIAL/STOP). Si GO, `backfill.ts --job mktorders` + `--job mktfees`, luego `sync-cross-country.ts` para benchmarks. Agendar por cron como el resto del ELT.\n4. Validar: `benchmarks_snapshots` no vacía y con ≥3 `destination_site` distintos con `estimated_taxes` presente; `mktfees` produce filas `commission_variable/sale_fee` en USD; reconciliar `total` de `/marketplace/orders/search` vs filas en `orders_raw`.",
+      "related_features": [
+        "ml-client-oauth-mutex-retry",
+        "charges-mapper-jurisdicciones-ar"
+      ],
+      "markdown_path": "knowledge/features/STACK/endpoints-global-selling-cbt-ml.md"
+    },
+    {
+      "slug": "ml-client-oauth-mutex-retry",
+      "title": "ml-client OAuth multi-canal con mutex + retry/backoff",
+      "summary": "Librería TypeScript `@traid/ml-client` con clase `MercadoLibreClient` que envuelve la API REST de MeLi: OAuth 2.0 completo con refresh proactivo vía pg_cron, mutex en memoria que evita race conditions en refreshes concurrentes al mismo canal, retry exponencial en 5xx/429 respetando `Retry-After`. 37 tests unitarios con MSW v2.",
+      "category_primary": "STACK",
+      "category_secondary": [],
+      "repos_origin": [
+        "traid-meli-platform"
+      ],
+      "reusability": "alta",
+      "status": "production",
+      "files_main": [],
+      "tech_stack": [],
+      "trade_offs": {
+        "pros": [
+          "Pros: SDK completo con 37 tests; mutex crítico para multi-tenant (evita que dos canales del mismo tenant race al mismo token); retry exponencial evita retries agresivos en rate limit; cero dependencias externas más allá del runtime"
+        ],
+        "cons": [
+          "Contras: el pg_cron de ml-token-refresh requiere configuración manual de app.settings.service_role_key en Supabase productivo (deuda técnica documentada); MSW v2 gotcha: NO capturar globalThis.fetch en el constructor del cliente o los tests rompen; la callback route asume App Router de Next.js"
+        ]
+      },
+      "how_to_reuse": "1. Copiar: `packages/ml-client/` completo al monorepo del nuevo proyecto\n2. Adaptar: renombrar env vars `ML_APP_ID` / `ML_APP_SECRET` al naming del cliente; la callback route es drop-in; ajustar `channelId` y `tenantId` a la estructura del nuevo proyecto\n3. Conectar: agregar la migration para `channel_credentials`; configurar `ALTER DATABASE postgres SET app.settings.service_role_key` en Supabase productivo para activar el pg_cron de refresh\n4. Validar: correr los 37 tests unitarios (`pnpm test`); verificar que el OAuth flow completo funciona con un seller sandbox antes de productivo",
+      "related_features": [
+        "charges-mapper-jurisdicciones-ar",
+        "clasificador-p1-p4-productos"
+      ],
+      "markdown_path": "knowledge/features/STACK/ml-client-oauth-mutex-retry.md"
+    }
+  ],
+  "clients": [
+    {
+      "slug": "adrian",
+      "title": "Adrián + Fabián — Global Selling US (electrónica ML)",
+      "status": "draft",
+      "canal_principal": "mercadolibre-us-global-selling",
+      "site_ids": [
+        "MLA",
+        "MLM"
+      ],
+      "markdown_path": "knowledge/clientes/adrian/README.md"
+    },
+    {
+      "slug": "adrian-remeras-meli-ar",
+      "title": "Adrián — remeras/buzos estampados + relojes (ML Argentina)",
+      "status": "lead",
+      "canal_principal": "mercadolibre-ar",
+      "site_ids": [],
+      "markdown_path": "knowledge/clientes/adrian-remeras-meli-ar/README.md"
+    },
+    {
+      "slug": "carrelo",
+      "title": "Carrelo + Pronto Casa",
+      "status": "stable",
+      "canal_principal": "mercadolibre",
+      "site_ids": [],
+      "markdown_path": "knowledge/clientes/carrelo/README.md"
+    },
+    {
+      "slug": "electronica-audio-meli-ar",
+      "title": "Electronica Audio MLA AR — Gestión Promos + Competidor Catálogo",
+      "status": "draft",
+      "canal_principal": "mercadolibre-ar",
+      "site_ids": [
+        "MLA",
+        "MCO"
+      ],
+      "markdown_path": "knowledge/clientes/electronica-audio-meli-ar/README.md"
+    },
+    {
+      "slug": "hernan",
+      "title": "Hernán — Importador Platino ML Colombia (Cali)",
+      "status": "draft",
+      "canal_principal": "mercadolibre-co",
+      "site_ids": [],
+      "markdown_path": "knowledge/clientes/hernan/README.md"
+    },
+    {
+      "slug": "pablo",
+      "title": "Pablo — Smart Products / Mopas (Córdoba, AR)",
+      "status": "draft",
+      "canal_principal": "mercadolibre-ar",
+      "site_ids": [],
+      "markdown_path": "knowledge/clientes/pablo/README.md"
+    },
+    {
+      "slug": "paulatina",
+      "title": "Gonzalo — Paulatina (Calzado femenino, CABA AR)",
+      "status": "draft",
+      "canal_principal": "mercadolibre-ar",
+      "site_ids": [],
+      "markdown_path": "knowledge/clientes/paulatina/README.md"
+    },
+    {
+      "slug": "victor",
+      "title": "Victor + Connie — Ferretería industrial ML Chile",
+      "status": "draft",
+      "canal_principal": "mercadolibre-cl",
+      "site_ids": [
+        "MLC"
+      ],
+      "markdown_path": "knowledge/clientes/victor/README.md"
+    }
+  ],
+  "gotchas": [
+    {
+      "id": "gotcha-benchmarks-403-local",
+      "endpoint_pattern": "/marketplace/benchmarks/*",
+      "summary": "Endpoint exclusivo Global Selling/CBT. Sellers locales devuelven 403 'Invalid caller.id'.",
+      "workaround": "Pre-flight /users/me.tags. Si no es GS, usar /items/{id}/price_to_win + /products/{cat_prod_id}/items + cálculo de tax desde adrian.country_taxes.",
+      "source": "obs #581, VIABILIDAD-tecnica §13",
+      "validated_at": "2026-05-22",
+      "severity": "alta"
+    },
+    {
+      "id": "gotcha-visits-broken",
+      "endpoint_pattern": "/items/{id}/visits",
+      "summary": "/items/{id}/visits aparenta deprecated o broken (caso Hernán HAPLAZ: devolvió 0 visits para 1796 items en backfill 12m).",
+      "workaround": "Usar /users/{uid}/items_visits/time_window?ids={ids_csv}&last=N&unit=day (multi-item con date range).",
+      "source": "brief Mes 0 punto #6",
+      "validated_at": "2026-05-26",
+      "severity": "alta"
+    },
+    {
+      "id": "gotcha-orders-payments-noexists",
+      "endpoint_pattern": "/orders/{id}/payments",
+      "summary": "El endpoint /orders/{id}/payments NO EXISTE.",
+      "workaround": "Usar /orders/{id} directamente — trae 'payments[]' adentro del response.",
+      "source": "obs #640 (gotcha 179)",
+      "validated_at": "2026-05-23",
+      "severity": "media"
+    },
+    {
+      "id": "gotcha-taxes-amount-zero-mco",
+      "endpoint_pattern": "/orders/{id}.payments[].taxes_amount",
+      "summary": "taxes_amount = 0 observado en todos los orders MCO. Retenciones van a nivel billing, no en payments[].",
+      "workaround": "Usar /users/{uid}/order_billing para retenciones. Validar si AR/MX tienen pattern similar.",
+      "source": "brief Mes 0 punto #6",
+      "validated_at": "2026-05-26",
+      "severity": "alta"
+    },
+    {
+      "id": "gotcha-rate-limit-1500",
+      "endpoint_pattern": "*",
+      "summary": "Rate limit 1500 req/min/seller. 429 con body vacío.",
+      "workaround": "Retry/backoff respetando Retry-After header. Mutex en token refresh.",
+      "source": "obs #640",
+      "validated_at": "2026-05-23",
+      "severity": "media"
+    },
+    {
+      "id": "gotcha-answers-2000-chars",
+      "endpoint_pattern": "/answers",
+      "summary": "Max 2000 chars UTF-8, plain text, NO HTML/markdown.",
+      "workaround": "Validar text.length <= 2000 + regex /<[^>]+>/ antes de POST.",
+      "source": "obs #640",
+      "validated_at": "2026-05-23",
+      "severity": "alta"
+    },
+    {
+      "id": "gotcha-pack-id-null",
+      "endpoint_pattern": "/orders/{id}.pack_id",
+      "summary": "pack_id puede ser null en órdenes single-pack.",
+      "workaround": "Si null, usar order_id directamente.",
+      "source": "obs #640",
+      "validated_at": "2026-05-23",
+      "severity": "baja"
+    },
+    {
+      "id": "gotcha-site-id-obligatorio-postsale",
+      "endpoint_pattern": "/messages/packs/* (post-sale)",
+      "summary": "site_id query param OBLIGATORIO desde ago-2024 en post-sale messaging.",
+      "workaround": "Siempre añadir ?site_id=MLA (o el que corresponda) al call.",
+      "source": "obs #640",
+      "validated_at": "2026-05-23",
+      "severity": "alta"
+    },
+    {
+      "id": "gotcha-promociones-sin-tope-margen",
+      "endpoint_pattern": "/seller-promotions/*",
+      "summary": "ML NO valida 'tope de margen' antes de aceptar deal_price. Acepta cualquier precio.",
+      "workaround": "Validar deal_price >= cost_floor en código TRAID antes de POST.",
+      "source": "obs #640",
+      "validated_at": "2026-05-23",
+      "severity": "alta"
+    },
+    {
+      "id": "gotcha-stock-zero-paused-auto",
+      "endpoint_pattern": "PUT /items/{id} (available_quantity=0)",
+      "summary": "Setear stock=0 deja pub en 'paused' con sub_status: out_of_stock automáticamente.",
+      "workaround": "No hace falta status update manual. Si querés reactivar, primero subir stock y después PUT status=active.",
+      "source": "obs #640",
+      "validated_at": "2026-05-23",
+      "severity": "baja"
+    },
+    {
+      "id": "gotcha-oauth-client-id-mismatch",
+      "endpoint_pattern": "/oauth/token (refresh)",
+      "summary": "Pattern observado: n8n workflow hardcoded un client_id distinto al que generó el token persistido → refresh falla con invalid_client.",
+      "workaround": "Al setupear OAuth multi-cuenta, verificar ML_CLIENT_ID coincide con la app que generó cada token persistido.",
+      "source": "brief Mes 0 punto #6",
+      "validated_at": "2026-05-26",
+      "severity": "alta"
+    },
+    {
+      "id": "gotcha-pads-no-attribution",
+      "endpoint_pattern": "/advertising/* (catálogo digital)",
+      "summary": "Publicidad Catálogo Digital (PADS) no atribuible por item — limitación estructural ML.",
+      "workaround": "Aceptar el gap. Reportar PADS como costo global, no por SKU.",
+      "source": "TRAID-ERP-V2 audit, feature P&G IVA",
+      "validated_at": "2026-05-13",
+      "severity": "media"
+    },
+    {
+      "id": "gotcha-msw-globalthis-fetch",
+      "endpoint_pattern": "(testing)",
+      "summary": "MSW v2: NO capturar globalThis.fetch en constructor del cliente — tests rompen.",
+      "workaround": "Usar fetch() inline en cada método, no cache en el constructor.",
+      "source": "ml-client-oauth-mutex-retry.md",
+      "validated_at": "2026-05-13",
+      "severity": "media"
+    },
+    {
+      "id": "gotcha-pg-cron-service-role-key",
+      "endpoint_pattern": "(Supabase pg_cron ml-token-refresh)",
+      "summary": "pg_cron de ml-token-refresh requiere ALTER DATABASE postgres SET app.settings.service_role_key en Supabase prod.",
+      "workaround": "Documentar setup manual + alertar en healthcheck si la setting no está.",
+      "source": "ml-client-oauth-mutex-retry.md",
+      "validated_at": "2026-05-13",
+      "severity": "media"
+    },
+    {
+      "id": "gotcha-search-deprecated-mar-2026",
+      "endpoint_pattern": "/sites/{site_id}/search (uso intensivo)",
+      "summary": "ML deprecó algunos paths de search en marzo 2026 (afectó sellers locales). Global Selling API es distinta y tiene su roadmap.",
+      "workaround": "Para competencia preferir /products/{cat_prod_id}/items (catalog API) sobre /sites/search. Monitorear changelog.",
+      "source": "obs #640",
+      "validated_at": "2026-05-23",
+      "severity": "media"
+    }
+  ],
+  "endpoints": [
+    {
+      "endpoint": "/items/{id}/price_to_win",
+      "status": "validated_200",
+      "returns": [
+        "price_to_win",
+        "current_price",
+        "boosts",
+        "visit_share",
+        "consistent",
+        "competitors_sharing_first_place",
+        "reason"
+      ],
+      "gotchas": [],
+      "use_cases": [
+        "pricing_recommendation",
+        "item_health_audit",
+        "buybox_check"
+      ],
+      "last_validated_at": "2026-05-22",
+      "validated_in_seller": "mati-satine AR"
+    },
+    {
+      "endpoint": "/users/{uid}/items_visits/time_window",
+      "status": "validated_200",
+      "returns": [
+        "total_visits",
+        "results[]"
+      ],
+      "gotchas": [
+        "gotcha-visits-broken"
+      ],
+      "use_cases": [
+        "item_health_audit",
+        "weekly_report"
+      ],
+      "last_validated_at": "2026-05-22",
+      "validated_in_seller": "mati-satine AR"
+    },
+    {
+      "endpoint": "/products/{catalog_product_id}",
+      "status": "validated_200",
+      "returns": [
+        "buy_box_winner",
+        "pdp_types",
+        "permalink",
+        "name",
+        "attributes"
+      ],
+      "gotchas": [],
+      "use_cases": [
+        "catalog_buybox_check",
+        "competitor_radar"
+      ],
+      "last_validated_at": "2026-05-22",
+      "validated_in_seller": "mati-satine AR"
+    },
+    {
+      "endpoint": "/products/{catalog_product_id}/items",
+      "status": "validated_200",
+      "returns": [
+        "item_id",
+        "price",
+        "seller_id",
+        "winner",
+        "shipping_free"
+      ],
+      "gotchas": [],
+      "use_cases": [
+        "catalog_buybox_check",
+        "competitor_radar"
+      ],
+      "last_validated_at": "2026-05-22",
+      "validated_in_seller": "mati-satine AR"
+    },
+    {
+      "endpoint": "/items/{id}/shipping_options",
+      "status": "validated_200",
+      "returns": [
+        "options[]",
+        "cost",
+        "base_cost",
+        "list_cost"
+      ],
+      "gotchas": [],
+      "use_cases": [
+        "landed_cost_calculator"
+      ],
+      "last_validated_at": "2026-05-22",
+      "validated_in_seller": "mati-satine AR"
+    },
+    {
+      "endpoint": "/marketplace/benchmarks/items/{id}/details",
+      "status": "exclusive_global_selling",
+      "returns": [
+        "current_price",
+        "suggested_price",
+        "lowest_price",
+        "internal_price",
+        "estimated_taxes",
+        "percent_difference",
+        "costs.selling_fees",
+        "costs.shipping_fees",
+        "applicable_suggestion",
+        "metadata",
+        "last_updated",
+        "status",
+        "ratio"
+      ],
+      "gotchas": [
+        "gotcha-benchmarks-403-local"
+      ],
+      "use_cases": [
+        "cross_country_arbitrage"
+      ],
+      "last_validated_at": "2026-05-22",
+      "validated_in_seller": "(doc oficial, 403 en mati-satine local)"
+    },
+    {
+      "endpoint": "/items/{id}/visits",
+      "status": "broken",
+      "returns": [],
+      "gotchas": [
+        "gotcha-visits-broken"
+      ],
+      "use_cases": [],
+      "last_validated_at": "2026-05-26",
+      "validated_in_seller": "HAPLAZ MCO"
+    },
+    {
+      "endpoint": "/orders/{id}/payments",
+      "status": "broken",
+      "returns": [],
+      "gotchas": [
+        "gotcha-orders-payments-noexists"
+      ],
+      "use_cases": [],
+      "last_validated_at": "2026-05-23",
+      "validated_in_seller": "(documentado en obs #640)"
+    },
+    {
+      "endpoint": "/items/{id}/prices",
+      "status": "validated_200",
+      "returns": [
+        "prices[]",
+        "history"
+      ],
+      "gotchas": [],
+      "use_cases": [
+        "price_history_audit"
+      ],
+      "last_validated_at": "2026-05-22",
+      "validated_in_seller": "mati-satine AR"
+    },
+    {
+      "endpoint": "/items?ids=X,Y,Z",
+      "status": "validated_200",
+      "returns": [
+        "items[]"
+      ],
+      "gotchas": [],
+      "use_cases": [
+        "multiget",
+        "competitor_radar"
+      ],
+      "last_validated_at": "2026-05-22",
+      "validated_in_seller": "mati-satine AR"
+    }
+  ],
+  "patterns": [
+    {
+      "use_case": "oauth multi tenant ml",
+      "feature_slug": "ml-client-oauth-mutex-retry",
+      "key_files": [
+        "packages/ml-client/src/get-access-token.ts",
+        "packages/ml-client/src/token-store.ts"
+      ],
+      "tldr": "Token cache con mutex anti-race. Refresh proactivo via pg_cron. 37 tests con MSW v2.",
+      "when_to_use": [
+        "proyecto multi-tenant ML",
+        "concurrencia entre workflows"
+      ],
+      "when_not_to_use": [
+        "single seller + sin concurrency"
+      ],
+      "example_implementations": [
+        "traid-meli-platform",
+        "TRAID-ERP-V2"
+      ]
+    },
+    {
+      "use_case": "repricing semáforo",
+      "feature_slug": "motor-repricing-semaforo-7-estados",
+      "key_files": [
+        "src/lib/repricing/scoring.ts",
+        "src/lib/repricing/anchor.ts",
+        "src/lib/repricing/narrative.ts"
+      ],
+      "tldr": "Motor scoring 5 factores → semáforo 7 estados. Narrativa lenguaje natural.",
+      "when_to_use": [
+        "cliente con catálogo > 50 SKUs",
+        "competencia activa visible"
+      ],
+      "when_not_to_use": [
+        "productos únicos sin benchmark"
+      ],
+      "example_implementations": [
+        "lubbi-erp",
+        "TRAID-ERP-V2"
+      ]
+    },
+    {
+      "use_case": "webhook ingest queue",
+      "feature_slug": "webhook-ingest-queue-durable",
+      "key_files": [
+        "src/api/webhooks/*"
+      ],
+      "tldr": "webhook_events table + 200ms response + worker async. Anti-pérdida de eventos.",
+      "when_to_use": [
+        "cualquier provider con webhooks (ML, MP, GitHub)"
+      ],
+      "when_not_to_use": [
+        "polling es suficiente"
+      ],
+      "example_implementations": [
+        "traid-meli-platform",
+        "TRAID-ERP-V2"
+      ]
+    },
+    {
+      "use_case": "bot preventa ml",
+      "feature_slug": "bot-preventa-ml-faq-descripcion-escalacion",
+      "key_files": [
+        "workflows/n8n/preventa.json"
+      ],
+      "tldr": "50 nodos n8n: FAQ + descripción ítem + escalación Redis. 3 tools AI Agent.",
+      "when_to_use": [
+        "seller con > 20 preguntas/día"
+      ],
+      "when_not_to_use": [
+        "volumen bajo, mejor responder a mano"
+      ],
+      "example_implementations": [
+        "agus",
+        "lubbi-erp",
+        "diego-erp"
+      ]
+    },
+    {
+      "use_case": "charges desagregator AR",
+      "feature_slug": "charges-mapper-jurisdicciones-ar",
+      "key_files": [
+        "packages/economics/charges-mapper.ts",
+        "packages/economics/jurisdictions.ts"
+      ],
+      "tldr": "Desagrega cargos MercadoPago en SIRTAC + IIBB + percepciones por las 24 provincias AR. Único en mercado.",
+      "when_to_use": [
+        "cliente MLA con contabilidad fina"
+      ],
+      "when_not_to_use": [
+        "MLM/MLB/MCO (régimen distinto)"
+      ],
+      "example_implementations": [
+        "traid-meli-platform"
+      ]
+    },
+    {
+      "use_case": "vista p&l por producto",
+      "feature_slug": "pgl-by-product-vista-materializada",
+      "key_files": [
+        "supabase/migrations/*_pgl_by_product.sql"
+      ],
+      "tldr": "Vista materializada con REFRESH CONCURRENTLY. Fuente única P&L por producto.",
+      "when_to_use": [
+        "cualquier cliente MeLi con > 100 órdenes/mes"
+      ],
+      "when_not_to_use": [
+        "productos sin historia"
+      ],
+      "example_implementations": [
+        "sur-tecnologia-meli",
+        "TRAID-ERP-V2"
+      ]
+    },
+    {
+      "use_case": "velocidad sku",
+      "feature_slug": "sku-velocity-vista-materializada",
+      "key_files": [
+        "supabase/migrations/*_sku_velocity.sql"
+      ],
+      "tldr": "Vista 7d/30d/90d velocidad + cobertura + trend + stockout risk. 4 índices.",
+      "when_to_use": [
+        "cliente con stock que rota"
+      ],
+      "when_not_to_use": [
+        "catálogo estático"
+      ],
+      "example_implementations": [
+        "sur-tecnologia-meli"
+      ]
+    },
+    {
+      "use_case": "idempotencia ingest",
+      "feature_slug": "idempotencia-journal-entries-cross-fuentes",
+      "key_files": [
+        "src/lib/ingest/idempotency.ts"
+      ],
+      "tldr": "idempotency_key + UNIQUE INDEX parcial + pre-check. Evita duplicados cross-source (ML + MP + Sheets).",
+      "when_to_use": [
+        "múltiples sources que escriben a la misma tabla"
+      ],
+      "when_not_to_use": [
+        "source único"
+      ],
+      "example_implementations": [
+        "mati-satine-software"
+      ]
+    },
+    {
+      "use_case": "multi-cuenta ML token manager",
+      "feature_slug": "patron-multicuenta-ml-token-manager",
+      "key_files": [
+        "n8n/workflows/CALLBACK_AGUS.json"
+      ],
+      "tldr": "Ramas paralelas Redis + Supabase. Refresh masivo N cuentas en un workflow.",
+      "when_to_use": [
+        "cliente con > 1 cuenta ML"
+      ],
+      "when_not_to_use": [
+        "single account"
+      ],
+      "example_implementations": [
+        "agus"
+      ]
+    },
+    {
+      "use_case": "fetch process split rate limit",
+      "feature_slug": "patron-fetch-process-split-rate-limit",
+      "key_files": [
+        "n8n/workflows/sync-mp.json"
+      ],
+      "tldr": "Separa 'crear tarea' de 'procesar resultado'. Resuelve 24 tasks/día MP con cuota.",
+      "when_to_use": [
+        "API con rate limit estricto + jobs largos"
+      ],
+      "when_not_to_use": [
+        "calls inmediatos sin paginación"
+      ],
+      "example_implementations": [
+        "mati-satine-software"
+      ]
+    },
+    {
+      "use_case": "HITL risk score auto-aprobacion",
+      "feature_slug": "patron-hitl-risk-score-auto-aprobacion",
+      "key_files": [
+        "src/lib/risk/scorer.ts"
+      ],
+      "tldr": "draft→validated→approved→executed con gate configurable por umbral.",
+      "when_to_use": [
+        "writes con impacto financiero ($, pricing, stock)"
+      ],
+      "when_not_to_use": [
+        "reads puros"
+      ],
+      "example_implementations": [
+        "globalstats"
+      ]
+    },
+    {
+      "use_case": "sistema alertas n8n",
+      "feature_slug": "sistema-alertas-n8n-errorworkflow",
+      "key_files": [
+        "n8n/workflows/error-handler.json"
+      ],
+      "tldr": "errorWorkflow + JSON importable + lista críticos configurable. Cero código.",
+      "when_to_use": [
+        "cualquier proyecto con n8n workflows críticos"
+      ],
+      "when_not_to_use": [
+        "proyectos sin n8n"
+      ],
+      "example_implementations": [
+        "mati-satine-software"
+      ]
+    },
+    {
+      "use_case": "sync google sheets supabase",
+      "feature_slug": "sync-google-sheets-supabase-service-account-deno",
+      "key_files": [
+        "supabase/functions/sheets-sync/index.ts"
+      ],
+      "tldr": "Service Account JWT Deno. paged reader 50K+ rows. Parser ARS coma decimal.",
+      "when_to_use": [
+        "cliente que vive en Sheets para costos/inventario"
+      ],
+      "when_not_to_use": [
+        "DB-first sin Sheets"
+      ],
+      "example_implementations": [
+        "mati-satine-software",
+        "lubbi-erp"
+      ]
+    },
+    {
+      "use_case": "ai sql analyst gemini",
+      "feature_slug": "ai-sql-analyst-gemini",
+      "key_files": [
+        "src/lib/analyst/agent.ts",
+        "src/lib/analyst/exec-sql.ts"
+      ],
+      "tldr": "Gemini + exec_sql_readonly + schema MD como contexto. Cero frontend custom.",
+      "when_to_use": [
+        "cualquier ERP con DB Supabase y dashboards analytics"
+      ],
+      "when_not_to_use": [
+        "DB sensible sin RLS bien definida"
+      ],
+      "example_implementations": [
+        "lubbi-erp"
+      ]
+    },
+    {
+      "use_case": "rag postventa pinecone",
+      "feature_slug": "rag-postventa-pinecone-cohere-gemini",
+      "key_files": [
+        "n8n/workflows/postventa-rag.json"
+      ],
+      "tldr": "14 nodos n8n: Pinecone + Cohere rerank + Gemini. Stack RAG más completo del portfolio.",
+      "when_to_use": [
+        "bot postventa con FAQ + manuales largos"
+      ],
+      "when_not_to_use": [
+        "volumen bajo de respuestas"
+      ],
+      "example_implementations": [
+        "agus"
+      ]
+    }
+  ],
+  "sql_snippets": [
+    {
+      "domain": "oauth_tokens",
+      "sql": "CREATE TABLE IF NOT EXISTS oauth_tokens (\n  account_label text PRIMARY KEY,\n  access_token  text NOT NULL,\n  refresh_token text,\n  expires_at    timestamptz,\n  updated_at    timestamptz DEFAULT now()\n);\nALTER TABLE oauth_tokens ENABLE ROW LEVEL SECURITY;\nCREATE POLICY oauth_tokens_service_role ON oauth_tokens\n  USING (auth.role() = 'service_role');",
+      "source_feature": "ml-client-oauth-mutex-retry",
+      "dependencies": [],
+      "notes": "Single-table multi-tenant via account_label. service_role bypassea RLS."
+    },
+    {
+      "domain": "mcp_write_audit",
+      "sql": "CREATE TABLE IF NOT EXISTS mcp_write_audit (\n  id bigserial PRIMARY KEY,\n  tool_name text NOT NULL,\n  client_slug text,\n  seller_id text,\n  item_id text,\n  payload jsonb NOT NULL,\n  result text NOT NULL,\n  created_at timestamptz DEFAULT now()\n);\nCREATE INDEX mcp_write_audit_tool_idx ON mcp_write_audit(tool_name, created_at DESC);\nCREATE INDEX mcp_write_audit_client_idx ON mcp_write_audit(client_slug, created_at DESC);",
+      "source_feature": "spec-capa1-ml-raw §6",
+      "dependencies": [],
+      "notes": "Audit log para todo write del MCP. payload guarda before/after delta."
+    },
+    {
+      "domain": "shipping_rates",
+      "sql": "CREATE TABLE IF NOT EXISTS shipping_rates (\n  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),\n  origin_account_label text NOT NULL,\n  destination_country text NOT NULL,\n  weight_grams_min int NOT NULL,\n  weight_grams_max int NOT NULL,\n  rate_usd numeric(10,2) NOT NULL,\n  carrier text,\n  notes text,\n  updated_by text DEFAULT 'manual',\n  updated_at timestamptz DEFAULT now(),\n  UNIQUE (origin_account_label, destination_country, weight_grams_min)\n);\nALTER TABLE shipping_rates ENABLE ROW LEVEL SECURITY;\nCREATE POLICY shipping_rates_tenant ON shipping_rates USING (true);",
+      "source_feature": "spec-capa3-composite-workflows D-4",
+      "dependencies": [],
+      "notes": "Para W2.2 landed_cost_calculator. Carrier ML, DHL, FedEx, etc."
+    },
+    {
+      "domain": "agent_notes",
+      "sql": "CREATE TABLE IF NOT EXISTS agent_notes (\n  id bigserial PRIMARY KEY,\n  agent_name text NOT NULL,\n  scope text NOT NULL,\n  category text NOT NULL,\n  note text NOT NULL,\n  metadata jsonb,\n  created_at timestamptz DEFAULT now()\n);\nCREATE INDEX agent_notes_scope_idx ON agent_notes(agent_name, scope, created_at DESC);",
+      "source_feature": "agent-stack-traid-2026 P3",
+      "dependencies": [],
+      "notes": "Pattern Vittoria — memoria semántica cross-session por agente + scope."
+    },
+    {
+      "domain": "webhook_events",
+      "sql": "CREATE TABLE IF NOT EXISTS webhook_events (\n  id bigserial PRIMARY KEY,\n  provider text NOT NULL,\n  topic text NOT NULL,\n  resource text,\n  user_id bigint,\n  application_id bigint,\n  payload jsonb NOT NULL,\n  received_at timestamptz DEFAULT now(),\n  processed_at timestamptz,\n  status text DEFAULT 'pending'\n);\nCREATE INDEX webhook_events_status_idx ON webhook_events(status, received_at);",
+      "source_feature": "webhook-ingest-queue-durable",
+      "dependencies": [],
+      "notes": "Queue durable. Insert sync <200ms, process async via worker."
+    }
+  ],
+  "stack_advice": [
+    {
+      "component": "agent_runtime",
+      "pick": "Vercel AI SDK v6",
+      "why": "Ya productivo en 3 repos TRAID, 20M downloads/mes, streaming nativo, TS-first",
+      "alternatives": [
+        {
+          "name": "Claude Agent SDK",
+          "when": "Necesitás filesystem/shell access + Max plan OAuth"
+        },
+        {
+          "name": "Pydantic AI",
+          "when": "Sub-agente Python data-heavy con DI explícita"
+        }
+      ],
+      "anti_picks": [
+        {
+          "name": "CrewAI",
+          "why": "Paralelismo libre va contra consenso Cognition"
+        },
+        {
+          "name": "LangGraph default",
+          "why": "Python-first, TRAID está en TS"
+        }
+      ],
+      "source": "agent-stack-traid-2026.md §5"
+    },
+    {
+      "component": "orchestration",
+      "pick": "Mastra Workflows",
+      "why": "TS-native, suspend/resume real, validado por Replit Agent 3 en prod, MCP nativo",
+      "alternatives": [
+        {
+          "name": "Inngest AgentKit",
+          "when": "Event-driven entre agentes"
+        },
+        {
+          "name": "Vercel Cron",
+          "when": "Cron simple sin branching"
+        }
+      ],
+      "anti_picks": [
+        {
+          "name": "n8n como brain",
+          "why": "Sin memoria, sin tests, sin debugging serio. Solo integration layer."
+        },
+        {
+          "name": "Temporal",
+          "why": "Enterprise overkill para TRAID size"
+        }
+      ],
+      "source": "agent-stack-traid-2026.md §5 L1"
+    },
+    {
+      "component": "llm_model",
+      "pick": "Sonnet 4.7 (reasoning) / Haiku 4.5 (conversational) / Gemini 2.5 Flash (multimedia)",
+      "why": "Constellation pattern Sierra — un modelo óptimo por task, no monolito",
+      "alternatives": [
+        {
+          "name": "Sonnet 4.7 + 1M context",
+          "when": "Procesar mensajes + commits + tasks juntos"
+        },
+        {
+          "name": "Gemini 3.x con responseSchema",
+          "when": "Structured output crítico"
+        }
+      ],
+      "anti_picks": [
+        {
+          "name": "Modelos preview en prod",
+          "why": "Breaking changes silenciosos"
+        },
+        {
+          "name": "OpenAI primary",
+          "why": "Solo embeddings + fallback"
+        }
+      ],
+      "source": "agent-stack-traid-2026.md §6"
+    },
+    {
+      "component": "vector_db",
+      "pick": "pgvector en Supabase",
+      "why": "Hasta 1M vectores sin agregar infra. Mismo stack que la app.",
+      "alternatives": [
+        {
+          "name": "Pinecone",
+          "when": "> 1M vectores o hybrid search Pinecone-native"
+        }
+      ],
+      "anti_picks": [
+        {
+          "name": "Pinecone con < 10k embeddings",
+          "why": "Costo + latencia + servicio más para mantener"
+        }
+      ],
+      "source": "agent-stack-traid-2026.md A10"
+    },
+    {
+      "component": "ui_framework",
+      "pick": "Next.js 16 + shadcn + Tailwind 4 + Nivo charts",
+      "why": "TRAIDgov-analyst validó en prod. Generative UI con Nivo más rico que Recharts.",
+      "alternatives": [
+        {
+          "name": "Recharts",
+          "when": "Charts simples sin Sankey/Treemap"
+        }
+      ],
+      "anti_picks": [],
+      "source": "agent-stack-traid-2026.md §5 L4"
+    },
+    {
+      "component": "db",
+      "pick": "Supabase Postgres con RLS estricta",
+      "why": "Source of truth + RLS + RPC + edge funcs ya en stack TRAID",
+      "alternatives": [],
+      "anti_picks": [
+        {
+          "name": "service_role en NEXT_PUBLIC_*",
+          "why": "Cualquiera con URL pública puede leer/escribir"
+        }
+      ],
+      "source": "agent-stack-traid-2026.md §5 L3 / A3"
+    },
+    {
+      "component": "auth",
+      "pick": "Supabase Auth + Magic Link + allowlist email",
+      "why": "Sin password = sin password leaks. Allowlist = sin spam signup.",
+      "alternatives": [
+        {
+          "name": "OAuth Google",
+          "when": "Cliente B2B con Workspace"
+        }
+      ],
+      "anti_picks": [
+        {
+          "name": "Email/password simple",
+          "why": "Password resets + leaks + UX peor que magic link"
+        }
+      ],
+      "source": "agent-stack-traid-2026.md L5 spec"
+    },
+    {
+      "component": "deploy_target",
+      "pick": "Vercel (default) / Dokploy (cuando backend long-running)",
+      "why": "Vercel = serverless TS-native. Dokploy = self-hosted para FastAPI/Python long jobs.",
+      "alternatives": [
+        {
+          "name": "Render",
+          "when": "Backend long-running sin Dokploy"
+        }
+      ],
+      "anti_picks": [
+        {
+          "name": "AWS EC2 raw",
+          "why": "Sin agencia DevOps justifica overhead"
+        }
+      ],
+      "source": "agent-stack-traid-2026.md L0"
+    },
+    {
+      "component": "observability",
+      "pick": "Mastra traces (TS) / Pydantic Logfire (Python) + Supabase audit",
+      "why": "Built-in en cada framework. Audit a Supabase para retención + queries.",
+      "alternatives": [
+        {
+          "name": "Sentry",
+          "when": "Error tracking dedicado (complementa, no reemplaza)"
+        }
+      ],
+      "anti_picks": [],
+      "source": "agent-stack-traid-2026.md §5 L6"
+    },
+    {
+      "component": "cron",
+      "pick": "Vercel Cron",
+      "why": "Cero infra adicional. Trigger HTTP endpoint con auth Bearer.",
+      "alternatives": [
+        {
+          "name": "pg_cron (Supabase)",
+          "when": "Cron interno DB sin HTTP"
+        },
+        {
+          "name": "n8n cron",
+          "when": "Workflow visual con steps"
+        }
+      ],
+      "anti_picks": [
+        {
+          "name": "Bash crontab en VPS",
+          "why": "Sin observability + frágil"
+        }
+      ],
+      "source": "agent-stack-traid-2026.md L1"
+    }
+  ],
+  "anti_patterns": [
+    {
+      "id": "A1-system-prompt-monolitico",
+      "summary": "System prompt > 300 líneas mezclando identidad + reglas + ejemplos + edge cases.",
+      "why_fails": "Conflictos entre reglas que el LLM no resuelve consistente. Costo tokens fijo. Difícil testear.",
+      "solution": "Romper en sub-agentes con handoffs explícitos. Cada uno con prompt focused.",
+      "keywords": [
+        "system prompt",
+        "monolithic",
+        "prompt grande",
+        "muchas reglas",
+        "edge cases"
+      ]
+    },
+    {
+      "id": "A2-paralelismo-libre-swarm",
+      "summary": "3+ agentes 'negociando' en paralelo, votando, comentándose entre sí.",
+      "why_fails": "Cada agente toma decisiones implícitas que conflictúan. Sin shared trace, sin coherencia.",
+      "solution": "Supervisor jerárquico: manager-children. Manager hace map, children read-only paralelos, writes single-thread.",
+      "keywords": [
+        "swarm",
+        "paralelo",
+        "multi-agent",
+        "votación",
+        "agentes negociando"
+      ]
+    },
+    {
+      "id": "A3-rls-abierto-service-role-cliente",
+      "summary": "SUPABASE_SERVICE_ROLE_KEY en NEXT_PUBLIC_* o RLS DISABLED en tablas con datos de usuarios.",
+      "why_fails": "Cualquiera con la URL pública puede leer/escribir. Prompt injection persistente.",
+      "solution": "service_role SOLO server-side. Cliente con anon key + RLS estricta. RPCs con SECURITY DEFINER + auth.uid() check.",
+      "keywords": [
+        "RLS",
+        "service role",
+        "NEXT_PUBLIC",
+        "supabase key",
+        "anon"
+      ]
+    },
+    {
+      "id": "A4-modelos-preview-en-prod",
+      "summary": "gemini-3-flash-preview, gemini-3.1-pro-preview sin pin a GA.",
+      "why_fails": "SLA no garantizado, breaking changes silenciosos, deprecación abrupta.",
+      "solution": "Pin a versión GA. Modelos preview solo en branches con feature flag.",
+      "keywords": [
+        "preview",
+        "experimental",
+        "alpha",
+        "beta model"
+      ]
+    },
+    {
+      "id": "A5-secretos-commiteados",
+      "summary": ".env.local en git, contiene service_role_key o API keys.",
+      "why_fails": "GitHub indexa. Bot scrapers en menos de 1h. Rotar credenciales urgente.",
+      "solution": ".env.local en .gitignore. Pre-commit hook scanea. Si entró: rotar credenciales ANTES de cualquier cosa.",
+      "keywords": [
+        "env",
+        ".env",
+        "commitear",
+        "secreto",
+        "API key",
+        "service role"
+      ]
+    },
+    {
+      "id": "A6-n8n-como-brain",
+      "summary": "Workflows n8n con > 10 nodos, branching condicional, LLM nodes, retry logic compleja.",
+      "why_fails": "No tests, no memoria entre runs, breaking changes en updates de nodos, debugging imposible.",
+      "solution": "n8n para integraciones tontas (token refresh, webhook receiver). Brain → Mastra Workflow o Inngest.",
+      "keywords": [
+        "n8n",
+        "workflow",
+        "branching",
+        "complejo"
+      ]
+    },
+    {
+      "id": "A7-computer-use-sin-necesidad",
+      "summary": "Computer Use o Browserbase para algo que tiene API.",
+      "why_fails": "10x más lento, 10x más caro, frágil ante cambios UI.",
+      "solution": "Buscar API primero. Computer Use solo para gov portals viejos sin endpoint.",
+      "keywords": [
+        "computer use",
+        "browserbase",
+        "scraping",
+        "playwright"
+      ]
+    },
+    {
+      "id": "A8-resumenes-entre-agentes",
+      "summary": "Agente A llama agente B con resumen. B opera sin contexto histórico.",
+      "why_fails": "Resúmenes pierden decisiones implícitas. B inconsistente con A.",
+      "solution": "Handoff con {from_agent, to_agent, task, full_trace: messages[], structured_result}.",
+      "keywords": [
+        "resumen",
+        "handoff",
+        "agentes",
+        "contexto"
+      ]
+    },
+    {
+      "id": "A9-modelos-caros-tareas-simples",
+      "summary": "Sonnet 4.7 para clasificar intent (saludo / duda / opt-out).",
+      "why_fails": "50x más caro, 5x más lento que necesario.",
+      "solution": "Classifier keyword determinista. Fallback Haiku 4.5 o Gemini Flash. Sonnet solo razonamiento real.",
+      "keywords": [
+        "sonnet",
+        "opus",
+        "clasificar",
+        "intent",
+        "simple"
+      ]
+    },
+    {
+      "id": "A10-vector-db-sin-necesidad",
+      "summary": "Pinecone para agente con < 10k embeddings.",
+      "why_fails": "pgvector escala fácil hasta 1M. Pinecone agrega costo + latencia + servicio más.",
+      "solution": "pgvector en Supabase hasta 1M. Pinecone solo si superás eso o hybrid search.",
+      "keywords": [
+        "pinecone",
+        "vector",
+        "embedding",
+        "pgvector"
+      ]
+    }
+  ]
+}

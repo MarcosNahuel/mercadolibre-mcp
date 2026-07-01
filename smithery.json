@@ -1,7 +1,7 @@
 {
-  "qualifiedName": "@traid/mercadolibre-mcp",
+  "qualifiedName": "@nahuelalbornoz/mercadolibre-mcp",
   "displayName": "Mercado Libre MCP Server",
-  "description": "Complete MCP server for Mercado Libre seller operations — 11 tools for products, orders, pricing, stock, questions, ads, reputation, and competitor analysis",
+  "description": "Mercado Libre MCP server for Claude Code, Cursor and AI agents — seller API tools for products, orders, pricing, stock, questions, ads, reputation and competitor analysis (write-back), official MCP proxy, Supabase multi-tenant token store, and TRAID knowledge tools",
   "homepage": "https://github.com/MarcosNahuel/mercadolibre-mcp",
   "iconUrl": "https://http2.mlstatic.com/frontend-assets/ml-web-navigation/ui-navigation/6.6.73/mercadolibre/logo_large_25years@2x.png",
   "connections": [
@@ -12,23 +12,42 @@
         "properties": {
           "ML_CLIENT_ID": {
             "type": "string",
-            "description": "App Client ID from developers.mercadolibre.com"
+            "description": "Auto-refresh mode: App Client ID from developers.mercadolibre.com"
           },
           "ML_CLIENT_SECRET": {
             "type": "string",
-            "description": "App Client Secret"
+            "description": "Auto-refresh mode: App Client Secret"
           },
           "ML_REFRESH_TOKEN": {
             "type": "string",
-            "description": "OAuth refresh token for the seller account"
+            "description": "Auto-refresh mode: OAuth refresh token for the seller account"
+          },
+          "ML_ACCESS_TOKEN": {
+            "type": "string",
+            "description": "Direct-token mode: access token refreshed externally (n8n/cron)"
+          },
+          "SUPABASE_URL": {
+            "type": "string",
+            "description": "Supabase mode (recommended, multi-tenant): project URL"
+          },
+          "SUPABASE_SERVICE_KEY": {
+            "type": "string",
+            "description": "Supabase mode: service_role key"
+          },
+          "ML_ACCOUNT_LABEL": {
+            "type": "string",
+            "description": "Supabase mode: account_label row to read from oauth_tokens"
           },
           "ML_SITE_ID": {
             "type": "string",
             "description": "ML site ID (MLA, MLU, MLB, MLC, MLM, MCO)",
             "default": "MLA"
+          },
+          "TRAID_CLIENT_SLUG": {
+            "type": "string",
+            "description": "Optional: enables traid_client_context without passing a slug argument"
           }
-        },
-        "required": ["ML_CLIENT_ID", "ML_CLIENT_SECRET", "ML_REFRESH_TOKEN"]
+        }
       }
     }
   ],
@@ -43,6 +62,8 @@
     { "name": "manage_ads", "description": "Activate, pause, or check Product Ads status" },
     { "name": "get_reputation", "description": "Seller reputation, level, metrics" },
     { "name": "search_competitors", "description": "Search competitor products by keyword" },
-    { "name": "get_categories", "description": "Browse categories and required attributes" }
+    { "name": "get_categories", "description": "Browse categories and required attributes" },
+    { "name": "traid_feature_lookup", "description": "Search reusable engineering features from the TRAID knowledge catalog" },
+    { "name": "traid_client_context", "description": "Get operational metadata for the current TRAID client project" }
   ]
 }

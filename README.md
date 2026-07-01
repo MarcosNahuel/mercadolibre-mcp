@@ -1,15 +1,51 @@
-# @nahuelalbornoz/mercadolibre-mcp
+# Mercado Libre MCP Server — para Claude Code, Cursor y agentes de IA
 
-MCP server completo para Mercado Libre. 11 tools TRAID de operaciones de seller con write-back **+ proxy automático al MCP oficial de Mercado Libre** (siempre actualizado server-side). Para usar desde Claude Code, Cursor, o cualquier cliente MCP.
+[![npm version](https://img.shields.io/npm/v/@nahuelalbornoz/mercadolibre-mcp.svg)](https://www.npmjs.com/package/@nahuelalbornoz/mercadolibre-mcp)
+[![npm downloads](https://img.shields.io/npm/dm/@nahuelalbornoz/mercadolibre-mcp.svg)](https://www.npmjs.com/package/@nahuelalbornoz/mercadolibre-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+
+**`@nahuelalbornoz/mercadolibre-mcp`** — servidor [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) para vendedores de Mercado Libre. 11 tools de operación (con write-back), proxy al MCP oficial de ML, token-store Supabase multi-tenant, y **knowledge tools** ("TRAID ML Hub", v1.2.0+) que exponen features, gotchas y patrones reusables programáticamente. Compatible con Claude Code, Cursor, Continue y cualquier cliente MCP.
 
 ```bash
 npx @nahuelalbornoz/mercadolibre-mcp
 ```
 
-## Tools disponibles
+## Por qué esta vs las alternativas
+
+- **vs el MCP oficial de ML**: este paquete lo **envuelve** (Capa 0, tools `official_*`, siempre actualizado server-side) y le agrega las operaciones de seller que el oficial no expone (precio/stock/preguntas/ads con write-back, métricas, reputación, competencia).
+- **vs [`@nahuelalbornoz/mercadolibre-mcp-read`](https://www.npmjs.com/package/@nahuelalbornoz/mercadolibre-mcp-read)**: ese es el subset **read-only** (7 tools, sin riesgo de tocar la tienda). Usá este paquete completo cuando necesites escribir (precios, stock, respuestas, ads); usá el `-read` si solo hacés análisis/reporting.
+- **Auth flexible**: 3 modos (Supabase multi-tenant, token directo, auto-refresh standalone) — elegís según si tenés un backend (n8n/cron) renovando el token o no.
+
+---
+
+## Arquitectura — 5 capas
+
+```
+CAPA 4 · _meta_*    introspection (TBD v1.2.0 GA)
+CAPA 3 · flow_*     composite workflows opt-in (TBD v1.2.0-rc)
+CAPA 2 · traid_*    knowledge tools ★ NUEVO en v1.2.0
+CAPA 1 · ml_*       endpoints ML hand-coded (11 v1.0 + 9 nuevas en beta)
+CAPA 0 · official_* proxy MCP oficial ML (v1.1.0)
+```
+
+| Capa | Cuándo cambia | Quién la usa |
+|---|---|---|
+| **0 — official** | Cuando ML actualiza server-side (transparente) | Devs buscando docs ML on-demand |
+| **1 — ml** | Cuando descubrimos gotcha o endpoint nuevo | Cualquier tool de Capa 3 o devs |
+| **2 — traid** | Cuando agregamos feature al `knowledge/` | Todo agente Claude arrancando feature ML en cualquier repo TRAID |
+| **3 — flow** | Cuando pulimos un workflow de negocio | Proyectos cliente que activan el flow via config |
+| **4 — meta** | Casi nunca | Devs debuggeando conexión MCP |
+
+Specs completos: `knowledge/stack/mcp-traid-ml-hub/` en el repo CONOCIMIENTO-NAHUEL.
+
+---
+
+## Capa 1 — Tools ML (11 v1.0 + extensiones)
+
+Las 11 tools existentes v1.0 (preservadas con backwards-compat 100%):
 
 | Tool | Descripción | Tipo |
-|------|-------------|------|
+|---|---|---|
 | `list_products` | Lista productos/publicaciones de un vendedor | Lectura |
 | `get_orders` | Obtiene órdenes/ventas con detalle | Lectura |
 | `update_price` | Actualiza precio de una publicación | Escritura |
@@ -22,30 +58,57 @@ npx @nahuelalbornoz/mercadolibre-mcp
 | `search_competitors` | Busca productos de la competencia | Lectura |
 | `get_categories` | Categorías y atributos para publicar | Lectura |
 
+En v1.2.0-beta llegan 9 tools más con prefijo `ml_*` para endpoints validados que faltaban: `ml_items_price_to_win`, `ml_users_items_visits_bulk`, `ml_products_catalog`, `ml_products_catalog_items`, `ml_items_shipping_options`, `ml_marketplace_benchmarks` (con pre-flight Global Selling check), `ml_orders_billing`, `ml_claims_search`, `ml_stock_fulfillment`. Ver `spec-capa1-ml-raw.md`.
+
+---
+
+## Capa 2 — Knowledge tools (★ nuevo)
+
+Tools que exponen el **catálogo TRAID** (155+ features auditadas en 10 repos cliente) y conocimiento operativo programáticamente.
+
+**Disponibles hoy** (prototypes que demuestran el patrón):
+
+### `traid_feature_lookup(query, limit?, category?)`
+
+Busca features reusables. Ej: `traid_feature_lookup("repricing")` → top 5 con `motor-repricing-semaforo-7-estados.md` (lubbi-erp) en primer lugar.
+
+### `traid_client_context(slug?)`
+
+Devuelve metadata del cliente actual (seller_ids, schema Supabase, n8n folder, bloqueantes). Auto-detect via `TRAID_CLIENT_SLUG` env.
+
+**TBD en próximas alphas**:
+
+- `traid_pattern_for(use_case)` — patrón reusable para un caso de uso
+- `traid_gotcha_search(query)` — busca gotchas API ML conocidos
+- `traid_endpoint_catalog(pattern?)` — endpoints validados/rotos/workarounds
+- `traid_sql_snippet(domain)` — schemas SQL canónicos
+- `traid_stack_advice(component)` — recomendación stack TRAID 2026
+- `traid_anti_pattern_check(description)` — check vs 10 anti-patterns
+
+Spec completo: `knowledge/stack/mcp-traid-ml-hub/spec-capa2-traid-knowledge.md`.
+
+---
+
+## Capa 0 — Proxy MCP oficial ML
+
+Al boot, conecta al servidor oficial `https://mcp.mercadolibre.com/mcp` y re-registra sus tools con prefijo `official_*`. Cuando ML agrega endpoints, los ves automáticamente sin re-buildear.
+
+Tools típicas: `official_search_documentation`, `official_get_documentation_page`, `official_product_description`, `official_product_reviews`, `official_seller_reputation`.
+
+Desactivable con `ML_SKIP_UPSTREAM_PROXY=1` o `TRAID_DISABLE_LAYERS=official`.
+
+---
+
 ## Setup
 
-Tres modos de autenticación (en orden de prioridad — se elige el primero configurado):
+Tres modos de autenticación (orden de prioridad — se elige el primero configurado):
 
-### Opción A: Supabase (multi-tenant, **recomendado v1.1.0+**)
-
-El `access_token` se lee de una tabla `oauth_tokens` en Supabase. Ideal cuando un cron externo (n8n, scheduled job) refresca y persiste el token. Soporta múltiples clientes / cuentas via el campo `account_label`.
-
-Schema mínimo esperado:
-
-```sql
-create table oauth_tokens (
-  account_label text primary key,    -- ej: 'miami', 'cliente_a', 'cliente_b'
-  access_token  text not null,
-  refresh_token text,
-  expires_at    timestamptz,
-  updated_at    timestamptz default now()
-);
-```
+### Opción A: Supabase (multi-tenant, recomendado v1.1.0+)
 
 ```json
 {
   "mcpServers": {
-    "mercadolibre": {
+    "traid-ml-hub": {
       "command": "npx",
       "args": ["-y", "@nahuelalbornoz/mercadolibre-mcp"],
       "env": {
@@ -53,104 +116,131 @@ create table oauth_tokens (
         "SUPABASE_SERVICE_KEY": "${SUPABASE_SERVICE_ROLE_KEY}",
         "ML_ACCOUNT_LABEL": "miami",
         "ML_TOKEN_TABLE": "oauth_tokens",
-        "ML_SITE_ID": "MLA"
+        "ML_SITE_ID": "MLA",
+
+        "TRAID_CLIENT_SLUG": "adrian",
+        "TRAID_KNOWLEDGE_MODE": "bundled"
       }
     }
   }
 }
 ```
 
-Aliases aceptados: `NEXT_PUBLIC_SUPABASE_URL` (en lugar de `SUPABASE_URL`), `SUPABASE_SERVICE_ROLE_KEY` (en lugar de `SUPABASE_SERVICE_KEY`). El service_role bypassea RLS.
+Schema mínimo esperado de la tabla de tokens:
 
-### Opción B: Token directo (si tenés n8n/cron renovando el token)
+```sql
+create table oauth_tokens (
+  account_label text primary key,
+  access_token  text not null,
+  refresh_token text,
+  expires_at    timestamptz,
+  updated_at    timestamptz default now()
+);
+```
+
+### Opción B: Token directo
 
 ```json
 {
-  "mcpServers": {
-    "mercadolibre": {
-      "command": "node",
-      "args": ["path/to/mercadolibre-mcp/dist/index.js"],
-      "env": {
-        "ML_ACCESS_TOKEN": "APP_USR-...",
-        "ML_SITE_ID": "MLA"
-      }
-    }
+  "env": {
+    "ML_ACCESS_TOKEN": "APP_USR-...",
+    "ML_SITE_ID": "MLA",
+    "TRAID_CLIENT_SLUG": "pablo"
   }
 }
 ```
 
-### Opción C: Auto-refresh (standalone, sin dependencias externas)
-
-1. Ir a [developers.mercadolibre.com](https://developers.mercadolibre.com)
-2. Crear aplicación → obtener `CLIENT_ID` y `CLIENT_SECRET`
-3. Autorizar vía OAuth → obtener `REFRESH_TOKEN`
+### Opción C: Auto-refresh standalone
 
 ```json
 {
-  "mcpServers": {
-    "mercadolibre": {
-      "command": "node",
-      "args": ["path/to/mercadolibre-mcp/dist/index.js"],
-      "env": {
-        "ML_CLIENT_ID": "tu_client_id",
-        "ML_CLIENT_SECRET": "tu_client_secret",
-        "ML_REFRESH_TOKEN": "tu_refresh_token",
-        "ML_SITE_ID": "MLA"
-      }
-    }
+  "env": {
+    "ML_CLIENT_ID": "tu_client_id",
+    "ML_CLIENT_SECRET": "tu_client_secret",
+    "ML_REFRESH_TOKEN": "tu_refresh_token",
+    "ML_SITE_ID": "MLA"
   }
 }
 ```
 
-### 3. Sites soportados
+---
+
+## Env vars v1.2.0+
+
+| Env | Default | Propósito |
+|---|---|---|
+| `TRAID_CLIENT_SLUG` | (vacío) | Slug del cliente actual (`adrian`, `pablo`, `hernan`, etc.). Habilita `traid_client_context` sin args. |
+| `TRAID_KNOWLEDGE_MODE` | `bundled` | `bundled` (default, snapshot JSON en el paquete) · `filesystem` (lee del repo CONOCIMIENTO-NAHUEL via `TRAID_KNOWLEDGE_PATH`) · `pinecone` (v1.3). |
+| `TRAID_KNOWLEDGE_PATH` | (vacío) | Path al repo CONOCIMIENTO-NAHUEL (solo modo `filesystem`). |
+| `TRAID_FLOWS_ENABLED` | (vacío) | CSV con nombres de `flow_*` a registrar. Default vacío = solo Capas 0+1+2+4. |
+| `TRAID_DISABLE_LAYERS` | (vacío) | CSV de capas a deshabilitar (`official,ml,traid,flow`). |
+| `GCP_PROJECT_ID` | (vacío) | Activa flows que usan Vertex Gemini. Sin esto, los flows W3.* arrancan disabled. |
+
+Env vars existentes v1.1.0 (preservadas): `ML_ACCESS_TOKEN`, `ML_CLIENT_ID`, `ML_CLIENT_SECRET`, `ML_REFRESH_TOKEN`, `ML_SITE_ID`, `ML_ACCOUNT_LABEL`, `ML_TOKEN_TABLE`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `ML_SKIP_UPSTREAM_PROXY`.
+
+---
+
+## Sites soportados
 
 | Site ID | País |
-|---------|------|
+|---|---|
 | MLA | Argentina |
 | MLU | Uruguay |
 | MLB | Brasil |
 | MLC | Chile |
 | MLM | México |
 | MCO | Colombia |
+| CBT | Global Selling (cross-border) |
 
-## Uso
+---
 
-Una vez configurado, Claude Code puede ejecutar directamente:
+## Uso desde Claude
 
-- "Listame los productos activos"
-- "Mostrá las órdenes de hoy"
-- "Actualizá el precio de MLA123456 a $5000"
-- "Qué preguntas sin responder tengo?"
-- "Buscá competencia para repuestos de freno Toyota"
+```
+"Listame los productos activos"
+"Mostrá las órdenes de hoy"
+"Actualizá el precio de MLA123456 a $5000"
+"Qué preguntas sin responder tengo?"
+"Buscá competencia para repuestos de freno Toyota"
 
-## Proxy al MCP oficial (auto-actualizado)
+# Nuevo en v1.2.0 (Capa 2):
+"Buscame features de TRAID relacionadas a OAuth multi-tenant"
+"Qué contexto tengo del cliente actual?"
+```
 
-A partir de v1.1.0 el server, al arrancar, también conecta como cliente MCP al servidor oficial de Mercado Libre (`https://mcp.mercadolibre.com/mcp`) y re-registra todas sus tools con prefijo `official_`.
-
-**Beneficio:** cuando ML agrega/cambia endpoints, los ves automáticamente sin re-buildear este paquete. Las 11 tools TRAID locales conviven y siempre tienen prioridad sobre el upstream.
-
-**Failure mode:** si el upstream no es reachable al boot, se logea un warning y las 11 tools locales arrancan igual.
-
-**Desactivar:** `ML_SKIP_UPSTREAM_PROXY=1` en el env (útil para tests offline).
-
-## Características
-
-- **OAuth2 auto-refresh**: El token se renueva automáticamente cada 6h (en modo C)
-- **Token shared via Supabase**: Multi-tenant, renovado por cron externo (en modo A)
-- **Upstream proxy**: surface oficial auto-actualizado server-side (v1.1.0+)
-- **Rate limiting**: Retry automático con backoff ante límites de la API
-- **Multi-get batching**: Consultas de múltiples items en lotes de 20
-- **Errores en español**: Mensajes de error claros, no JSON crudo
-- **Validación Zod**: Cada parámetro validado antes de llamar a la API
+---
 
 ## Desarrollo
 
 ```bash
-cd mcp-servers/mercadolibre
+cd PROYECTOS/mercadolibre-mcp
 npm install
-npm run build    # Compilar TypeScript
-npm run dev      # Desarrollo con tsx
+npm run build               # Compilar TypeScript
+npm run build:knowledge     # Regenerar data/knowledge.json desde CONOCIMIENTO-NAHUEL
+npm run dev                 # Dev con tsx + reload
 ```
+
+Requiere que el repo CONOCIMIENTO-NAHUEL esté en `../CONOCIMIENTO-NAHUEL` para `build:knowledge`.
+
+### Tests del knowledge snapshot
+
+```bash
+node -e "const {searchFeatures} = require('./dist/knowledge/loader.js'); console.log(searchFeatures('repricing', {limit: 3}))"
+```
+
+---
+
+## Seguridad
+
+- **Auto-refresh serializado (single-flight)**: el refresh del token (modo standalone) está serializado in-process — dos refrescos concurrentes ya no revocan la cuenta (el `refresh_token` de ML es de un solo uso).
+- **Nunca se loguea el valor de un token**, ni truncado. Solo "presente/ausente/rotado".
+- Reportar vulnerabilidades: [issues del repo](https://github.com/MarcosNahuel/mercadolibre-mcp/issues) o `contacto@traid.agency`.
+
+## Related
+
+- [`@nahuelalbornoz/mercadolibre-mcp-read`](https://www.npmjs.com/package/@nahuelalbornoz/mercadolibre-mcp-read) — subset read-only (7 tools), sin riesgo de tocar la tienda.
+- [Model Context Protocol](https://modelcontextprotocol.io/) — especificación del protocolo.
+- [Mercado Libre Developers](https://developers.mercadolibre.com/) — docs oficiales de la API.
 
 ## Licencia
 
