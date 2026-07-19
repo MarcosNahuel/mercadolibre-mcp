@@ -24,18 +24,30 @@ import { registerGetReputation } from './tools/reputation.js'
 import { registerSearchCompetitors } from './tools/competitors.js'
 import { registerGetCategories } from './tools/categories.js'
 
+// Capa 1 — analytics read-only porteadas de meli-seller-mcp (fusión 2026-07-18)
+import { registerPriceToWin } from './tools/price_to_win.js'
+import { registerPriceHistory } from './tools/price_history.js'
+import { registerStockoutRisk } from './tools/stockout_risk.js'
+
 // Capa 0 — proxy MCP oficial
 import { registerUpstreamProxy } from './upstream-proxy.js'
 
 // Capa 2 — knowledge tools
 import { registerTraidLayer } from './layers/traid/index.js'
 
+// Candados: bloquea el registro de tools destructivas/de compra (buy_*, delete, etc.)
+import { guardServer } from './tool-guard.js'
+
 const PACKAGE_VERSION = '1.2.0-alpha.1'
 
-const server = new McpServer({
+const rawServer = new McpServer({
   name: 'traid-ml-hub',
   version: PACKAGE_VERSION,
 })
+
+// Todo registro de tool pasa por el gate de candados (falla el boot si se intenta
+// registrar una operación destructiva/de compra). Aplica a Capa 0/1/2 por igual.
+const server = guardServer(rawServer)
 
 // ============================================================================
 // Config: qué capas activar
@@ -65,6 +77,10 @@ if (!skipMl) {
   registerGetReputation(server)
   registerSearchCompetitors(server)
   registerGetCategories(server)
+  // Analytics read-only nuevas (fusión meli-seller-mcp 2026-07-18)
+  registerPriceToWin(server)
+  registerPriceHistory(server)
+  registerStockoutRisk(server)
 }
 
 // ============================================================================
@@ -105,7 +121,7 @@ async function main() {
 
   const capaStatus = [
     !skipUpstream ? `0:official(${proxiedCount})` : '0:off',
-    !skipMl ? '1:ml(11)' : '1:off',
+    !skipMl ? '1:ml(14)' : '1:off',
     !skipTraid ? '2:traid(2)' : '2:off',
     !skipFlow ? '3:flow(0)' : '3:off',
     '4:meta(0)',
