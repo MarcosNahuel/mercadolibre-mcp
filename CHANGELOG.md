@@ -2,6 +2,32 @@
 
 Todas las versiones de `@nahuelalbornoz/mercadolibre-mcp` en orden inverso.
 
+## [No publicado] — Fusión `meli-seller-mcp` (2026-07-18)
+
+Absorbe lo mejor del repo hermano `meli-seller-mcp` (que queda archivado). Aditivo
+y compatible: no cambia la firma pública de `getAccessToken()` ni las 11 tools v1.0.
+
+### Added
+- **3 analytics read-only** (Capa 1, TypeScript puro): `price_to_win`,
+  `price_history`, `stockout_risk`. Banner `1:ml(11)` → `1:ml(14)`.
+- **Helper `mlGetAll`** (paginado offset/limit con corte en ~10k) en `src/client.ts`.
+- **Migración `migrations/0001_oauth_tokens_lease.sql`** — columnas de lease
+  (`refresh_in_progress`/`locked_until`) sobre `oauth_tokens`, RLS inline
+  service_role-only (previene CVE-2025-48757). Idempotente.
+- **Env `ML_AUTH_MODE=standalone`** (opt-in) — fuerza el auto-refresh aunque haya
+  Supabase configurado, para habilitar el lease CAS. Default: comportamiento histórico.
+
+### Security
+- **Lease CAS cross-proceso** para el refresh del token (modo standalone con
+  Supabase): serializa el refresh entre réplicas, no sólo in-process. Se apoya en
+  el single-flight in-process existente como primera línea y fallback.
+- **Candados de tools** (`src/tool-guard.ts`): el registro corta el arranque si se
+  intenta registrar una tool de compra/destructiva (`buy_*`, `purchase`, `checkout`,
+  `delete`, `cancel`, `refund`, `pay*`, en/es). Allowlist explícita de las 4 writes.
+
+### Not ported
+- `forecast_demand` (Prophet/Python) queda fuera: evita una dependencia de host dura.
+
 ## [1.2.0-alpha.1] — 2026-07-01
 
 > Publicada bajo el dist-tag `alpha` (no `latest`) — instalar explícitamente con
