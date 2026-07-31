@@ -2,7 +2,10 @@
 
 Todas las versiones de `@nahuelalbornoz/mercadolibre-mcp` en orden inverso.
 
-## [No publicado] — Fusión `meli-seller-mcp` (2026-07-18)
+## [1.2.0-alpha.2] — Fusión `meli-seller-mcp` (2026-07-18, publicado 2026-07-31)
+
+> Publicado como `alpha.2`: `alpha.1` quedó con un tombstone en el registro de npm
+> (publicado y despublicado antes; npm nunca reutiliza ese string de versión exacto).
 
 Absorbe lo mejor del repo hermano `meli-seller-mcp` (que queda archivado). Aditivo
 y compatible: no cambia la firma pública de `getAccessToken()` ni las 11 tools v1.0.
