@@ -57,6 +57,11 @@ Las 11 tools existentes v1.0 (preservadas con backwards-compat 100%):
 | `get_reputation` | Reputación del vendedor | Lectura |
 | `search_competitors` | Busca productos de la competencia | Lectura |
 | `get_categories` | Categorías y atributos para publicar | Lectura |
+| `price_to_win` | Precio para ganar el buy-box / competencia de catálogo | Lectura |
+| `price_history` | Historial de cambios de precio de una publicación | Lectura |
+| `stockout_risk` | Riesgo de quiebre de stock (días de cobertura + velocidad) | Lectura |
+
+Las 3 últimas (`price_to_win`, `price_history`, `stockout_risk`) se sumaron en la **fusión `meli-seller-mcp` (2026-07-18)** — ver más abajo.
 
 En v1.2.0-beta llegan 9 tools más con prefijo `ml_*` para endpoints validados que faltaban: `ml_items_price_to_win`, `ml_users_items_visits_bulk`, `ml_products_catalog`, `ml_products_catalog_items`, `ml_items_shipping_options`, `ml_marketplace_benchmarks` (con pre-flight Global Selling check), `ml_orders_billing`, `ml_claims_search`, `ml_stock_fulfillment`. Ver `spec-capa1-ml-raw.md`.
 
@@ -232,9 +237,30 @@ node -e "const {searchFeatures} = require('./dist/knowledge/loader.js'); console
 
 ## Seguridad
 
-- **Auto-refresh serializado (single-flight)**: el refresh del token (modo standalone) está serializado in-process — dos refrescos concurrentes ya no revocan la cuenta (el `refresh_token` de ML es de un solo uso).
+- **Auto-refresh serializado (single-flight + lease CAS)**: el refresh del token (modo standalone) está serializado in-process — dos refrescos concurrentes ya no revocan la cuenta (el `refresh_token` de ML es de un solo uso). Con Supabase configurado, además se serializa **entre procesos/réplicas** con un lease *compare-and-set* (CAS) sobre `oauth_tokens` (columnas `refresh_in_progress`/`locked_until`). Requiere aplicar `migrations/0001_oauth_tokens_lease.sql` (idempotente, RLS inline service_role-only). Sin la migración, el single-flight in-process sigue protegiendo la carrera. Ver la sección "Fusión meli-seller-mcp".
 - **Nunca se loguea el valor de un token**, ni truncado. Solo "presente/ausente/rotado".
+- **Candados de tools**: el registro pasa por un gate (`src/tool-guard.ts`) que **corta el arranque** si se intentara registrar una tool de compra u operación destructiva (`buy_*`, `purchase`, `checkout`, `delete`, `cancel`, `refund`, `pay*`, en inglés y español). Las 4 tools de escritura permitidas (`update_price`, `update_stock`, `answer_question`, `manage_ads`) están en una allowlist explícita.
 - Reportar vulnerabilidades: [issues del repo](https://github.com/MarcosNahuel/mercadolibre-mcp/issues) o `contacto@traid.agency`.
+
+---
+
+## Fusión `meli-seller-mcp` — 2026-07-18
+
+Este paquete **absorbió** lo mejor del repo hermano `meli-seller-mcp` (un MCP read-only más nuevo, con la auth blindada y analytics porteadas de `globalstats-haussman`), que queda archivado. Qué se trajo:
+
+**Absorbido:**
+
+- **Lease CAS del token** (seguridad): el refresh del modo standalone ahora puede serializarse **cross-proceso** con un lease en la DB, no sólo in-process. Cableado en `src/auth.ts` sobre helpers de `src/token-store.ts` (`tryAcquireRefreshLease`/`releaseRefreshLease`/`persistRefreshedToken`/`readTokenRow`/`waitForFreshDbToken`). Se activa cuando hay Supabase configurado; `ML_AUTH_MODE=standalone` fuerza el auto-refresh aunque haya Supabase (para usar el lease). Migración nueva: `migrations/0001_oauth_tokens_lease.sql`.
+- **3 analytics read-only nuevas** (Capa 1, `src/tools/`), reimplementadas en **TypeScript puro** con el patrón `server.tool()→content` del paquete:
+  - `price_to_win` — precio para ganar el buy-box / competencia de catálogo (`GET /items/{id}/price_to_win?version=v2`).
+  - `price_history` — historial de cambios de precio (`GET /pricing-automation/items/{id}/price/history`).
+  - `stockout_risk` — riesgo de quiebre de stock: días de cobertura y velocidad de venta, calculado en vivo (órdenes + stock). Suma un helper `mlGetAll` (paginado offset/limit) a `src/client.ts`.
+- **Candados** de tools destructivas/de compra (ver Seguridad).
+
+**Qué falta / fuera de alcance:**
+
+- **`forecast_demand`** (pronóstico de demanda Prophet/Python) **NO se portó**: introduce una dependencia de host (Python + `prophet` + `pandas`) que no queremos como dependencia dura en todos los deploys. Queda como trabajo futuro detrás de un flag.
+- El **broker de tokens central**: a futuro, el refresh delegará en el *token broker* de traid-saas (`/internal/v1/token`) cuando esté vivo; el lease CAS local queda como **defensa propia** (funciona sin el broker y lo complementa).
 
 ## Related
 

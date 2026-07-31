@@ -6,11 +6,20 @@ import type { MLError } from './types.js'
 const ML_API_BASE = 'https://api.mercadolibre.com'
 const MAX_RETRIES = 2
 const RETRY_DELAY_MS = 1000
+const DEFAULT_PAGE_LIMIT = 50
+/** ML corta el paginado por offset alrededor de 10k; guardamos contra loops. */
+const MAX_OFFSET = 10_000
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
   body?: Record<string, unknown>
   params?: Record<string, string | number | undefined>
+}
+
+/** Respuesta paginada estándar de los endpoints de búsqueda de ML. */
+interface MLPaginated<T> {
+  results?: T[]
+  paging?: { total?: number; offset?: number; limit?: number }
 }
 
 export async function mlFetch<T>(
@@ -104,6 +113,36 @@ export async function mlMultiGet<T>(ids: string[], path: string): Promise<T[]> {
   }
 
   return results
+}
+
+/**
+ * GET paginado: sigue offset/limit hasta agotar `paging.total` y devuelve el array
+ * completo de `results`. Para endpoints de búsqueda de ML (órdenes, items del seller).
+ * Corta en MAX_OFFSET (~10k) para no loopear (límite de paginado de ML).
+ */
+export async function mlGetAll<T>(
+  path: string,
+  params: Record<string, string | number | undefined> = {}
+): Promise<T[]> {
+  const limit = Number(params.limit ?? DEFAULT_PAGE_LIMIT)
+  let offset = Number(params.offset ?? 0)
+  const all: T[] = []
+
+  for (;;) {
+    const page = await mlFetch<MLPaginated<T>>(path, { params: { ...params, limit, offset } })
+    const results = page.results ?? []
+    all.push(...results)
+
+    const total = page.paging?.total ?? all.length
+    offset += limit
+
+    if (results.length === 0 || all.length >= total || offset >= total) break
+    if (offset >= MAX_OFFSET) {
+      console.error(`[ml-mcp] mlGetAll cortó en offset ${offset} (límite de paginado ML) para ${path}.`)
+      break
+    }
+  }
+  return all
 }
 
 function isRetryable(error: Error): boolean {
