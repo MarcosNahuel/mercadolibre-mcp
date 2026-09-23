@@ -42,18 +42,20 @@ Specs completos: `knowledge/stack/mcp-traid-ml-hub/` en el repo CONOCIMIENTO-NAH
 
 ## Capa 1 — Tools ML (11 v1.0 + extensiones)
 
-Las 11 tools existentes v1.0 (preservadas con backwards-compat 100%):
+Las 11 tools existentes v1.0 (preservadas con backwards-compat 100%). Las 4 marcadas
+**Escritura** sólo se registran con `ML_WRITES_ENABLED=1` — sin esa env var el server
+arranca read-only y esas 4 tools no existen para el cliente MCP (ver "Seguridad").
 
 | Tool | Descripción | Tipo |
 |---|---|---|
 | `list_products` | Lista productos/publicaciones de un vendedor | Lectura |
 | `get_orders` | Obtiene órdenes/ventas con detalle | Lectura |
-| `update_price` | Actualiza precio de una publicación | Escritura |
-| `update_stock` | Actualiza stock de una publicación | Escritura |
+| `update_price` | Actualiza precio de una publicación | Escritura (`ML_WRITES_ENABLED=1`) |
+| `update_stock` | Actualiza stock de una publicación | Escritura (`ML_WRITES_ENABLED=1`) |
 | `list_questions` | Lista preguntas recibidas | Lectura |
-| `answer_question` | Responde una pregunta | Escritura |
+| `answer_question` | Responde una pregunta | Escritura (`ML_WRITES_ENABLED=1`) |
 | `get_item_metrics` | Métricas: visitas, conversión, salud | Lectura |
-| `manage_ads` | Gestiona Product Ads (activar/pausar/status) | Escritura |
+| `manage_ads` | Gestiona Product Ads (activar/pausar/status) | Escritura (`ML_WRITES_ENABLED=1`) |
 | `get_reputation` | Reputación del vendedor | Lectura |
 | `search_competitors` | Busca productos de la competencia | Lectura |
 | `get_categories` | Categorías y atributos para publicar | Lectura |
@@ -75,7 +77,7 @@ Tools que exponen el **catálogo TRAID** (155+ features auditadas en 10 repos cl
 
 ### `traid_feature_lookup(query, limit?, category?)`
 
-Busca features reusables. Ej: `traid_feature_lookup("repricing")` → top 5 con `motor-repricing-semaforo-7-estados.md` (lubbi-erp) en primer lugar.
+Busca features reusables. Ej: `traid_feature_lookup("repricing")` → top 5 con `motor-repricing-semaforo-7-estados.md` en primer lugar.
 
 ### `traid_client_context(slug?)`
 
@@ -123,7 +125,7 @@ Tres modos de autenticación (orden de prioridad — se elige el primero configu
         "ML_TOKEN_TABLE": "oauth_tokens",
         "ML_SITE_ID": "MLA",
 
-        "TRAID_CLIENT_SLUG": "adrian",
+        "TRAID_CLIENT_SLUG": "mi-cliente",
         "TRAID_KNOWLEDGE_MODE": "bundled"
       }
     }
@@ -150,7 +152,7 @@ create table oauth_tokens (
   "env": {
     "ML_ACCESS_TOKEN": "APP_USR-...",
     "ML_SITE_ID": "MLA",
-    "TRAID_CLIENT_SLUG": "pablo"
+    "TRAID_CLIENT_SLUG": "mi-cliente"
   }
 }
 ```
@@ -174,7 +176,8 @@ create table oauth_tokens (
 
 | Env | Default | Propósito |
 |---|---|---|
-| `TRAID_CLIENT_SLUG` | (vacío) | Slug del cliente actual (`adrian`, `pablo`, `hernan`, etc.). Habilita `traid_client_context` sin args. |
+| `ML_WRITES_ENABLED` | (vacío = OFF) | Setear `1` o `true` para habilitar `update_price`/`update_stock`/`answer_question`/`manage_ads`. Sin esto el server arranca **read-only**. |
+| `TRAID_CLIENT_SLUG` | (vacío) | Slug del cliente actual. Habilita `traid_client_context` sin args. |
 | `TRAID_KNOWLEDGE_MODE` | `bundled` | `bundled` (default, snapshot JSON en el paquete) · `filesystem` (lee del repo CONOCIMIENTO-NAHUEL via `TRAID_KNOWLEDGE_PATH`) · `pinecone` (v1.3). |
 | `TRAID_KNOWLEDGE_PATH` | (vacío) | Path al repo CONOCIMIENTO-NAHUEL (solo modo `filesystem`). |
 | `TRAID_FLOWS_ENABLED` | (vacío) | CSV con nombres de `flow_*` a registrar. Default vacío = solo Capas 0+1+2+4. |
@@ -239,7 +242,10 @@ node -e "const {searchFeatures} = require('./dist/knowledge/loader.js'); console
 
 - **Auto-refresh serializado (single-flight + lease CAS)**: el refresh del token (modo standalone) está serializado in-process — dos refrescos concurrentes ya no revocan la cuenta (el `refresh_token` de ML es de un solo uso). Con Supabase configurado, además se serializa **entre procesos/réplicas** con un lease *compare-and-set* (CAS) sobre `oauth_tokens` (columnas `refresh_in_progress`/`locked_until`). Requiere aplicar `migrations/0001_oauth_tokens_lease.sql` (idempotente, RLS inline service_role-only). Sin la migración, el single-flight in-process sigue protegiendo la carrera. Ver la sección "Fusión meli-seller-mcp".
 - **Nunca se loguea el valor de un token**, ni truncado. Solo "presente/ausente/rotado".
-- **Candados de tools**: el registro pasa por un gate (`src/tool-guard.ts`) que **corta el arranque** si se intentara registrar una tool de compra u operación destructiva (`buy_*`, `purchase`, `checkout`, `delete`, `cancel`, `refund`, `pay*`, en inglés y español). Las 4 tools de escritura permitidas (`update_price`, `update_stock`, `answer_question`, `manage_ads`) están en una allowlist explícita.
+- **Candados de tools** (`src/tool-guard.ts`), dos independientes, ambos aplicados a todo registro (proxy oficial incluido):
+  - Denylist de compra/destructivas (`buy_*`, `purchase`, `checkout`, `delete`, `cancel`, `refund`, `pay*`, en inglés y español) — **siempre** bloqueada, sin flag que la habilite.
+  - **Escritura desactivada por defecto**: `update_price`, `update_stock`, `answer_question` y `manage_ads` sólo se registran con `ML_WRITES_ENABLED=1` seteado explícitamente en el entorno del cliente MCP. Sin esa env var, el server arranca **read-only** (10 tools de ML, sin las 4 de escritura).
+- **El paquete npm no bundlea `data/knowledge.json`**: el knowledge snapshot (Capa 2) nunca lleva fichas de clientes TRAID (`clients: []` en el snapshot commiteado) y, además, no viaja en absoluto en el tarball publicado — sólo está disponible corriendo desde el repo local o con `TRAID_KNOWLEDGE_MODE=filesystem` apuntando a un checkout privado.
 - Reportar vulnerabilidades: [issues del repo](https://github.com/MarcosNahuel/mercadolibre-mcp/issues) o `contacto@traid.agency`.
 
 ---

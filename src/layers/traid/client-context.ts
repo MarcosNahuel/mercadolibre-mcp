@@ -10,14 +10,16 @@ import type { ClientEntry } from '../types.js'
 export function registerTraidClientContext(server: McpServer) {
   server.tool(
     'traid_client_context',
-    'Devuelve metadata operativa del cliente TRAID actual (seller_ids, schema Supabase, n8n folder, ' +
-      'repos, bloqueantes pendientes). Si no se pasa slug, usa TRAID_CLIENT_SLUG env var (auto-detect). ' +
-      'Usar al arrancar sesión Claude en un proyecto cliente para cargar contexto sin parsear archivos.',
+    'Busca metadata operativa de un cliente TRAID en el knowledge snapshot cargado. ' +
+      'El snapshot que se versiona y publica (bundled, modo default) NUNCA lleva fichas de ' +
+      'clientes (contención D-2026-09-23-01) -- esta tool devuelve vacío salvo que corras con ' +
+      '`TRAID_KNOWLEDGE_MODE=filesystem` apuntando a tu checkout privado de CONOCIMIENTO-NAHUEL. ' +
+      'Si no se pasa slug, usa TRAID_CLIENT_SLUG env var (auto-detect).',
     {
       slug: z
         .string()
         .optional()
-        .describe('Slug del cliente (`adrian`, `pablo`, `hernan`, `lubbi`, etc.). Si se omite, usa TRAID_CLIENT_SLUG.'),
+        .describe('Slug del cliente. Si se omite, usa TRAID_CLIENT_SLUG.'),
     },
     async ({ slug }) => {
       const effectiveSlug = slug || process.env.TRAID_CLIENT_SLUG
@@ -32,9 +34,10 @@ export function registerTraidClientContext(server: McpServer) {
               text:
                 `## traid_client_context() — sin slug\n\n` +
                 `⚠ No se pasó \`slug\` y \`TRAID_CLIENT_SLUG\` env var no está set.\n\n` +
-                `**Clientes conocidos en el knowledge snapshot** (${snap.clients.length}):\n${known || '(ninguno)'}\n\n` +
-                `Pasá el slug como argumento, o configurá la env var en tu \`.mcp.json\`:\n` +
-                `\`\`\`json\n"env": { "TRAID_CLIENT_SLUG": "adrian" }\n\`\`\``,
+                `**Clientes conocidos en el knowledge snapshot** (${snap.clients.length}):\n${known || '(ninguno — el snapshot bundled/público no lleva fichas de clientes por diseño)'}\n\n` +
+                `Pasá el slug como argumento, o configurá la env var en tu \`.mcp.json\`. Para ver ` +
+                `fichas reales corré con \`TRAID_KNOWLEDGE_MODE=filesystem\` + \`TRAID_KNOWLEDGE_PATH\` ` +
+                `apuntando a tu checkout privado de CONOCIMIENTO-NAHUEL.`,
             },
           ],
         }

@@ -1,7 +1,7 @@
 {
   "name": "@nahuelalbornoz/mercadolibre-mcp",
-  "version": "1.2.0-alpha.2",
-  "description": "Mercado Libre MCP server for Claude Code, Cursor and AI agents: seller API tools for products, orders, price/stock, questions, ads and reputation (write-back) + official MCP proxy + Supabase token store + TRAID knowledge tools.",
+  "version": "1.2.0-alpha.3",
+  "description": "Mercado Libre MCP server for Claude Code, Cursor and AI agents: seller API tools for products, orders, price/stock, questions, ads and reputation (write-back, off by default) + official MCP proxy + Supabase token store + TRAID knowledge tools.",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
@@ -10,7 +10,6 @@
   },
   "files": [
     "dist",
-    "data",
     "README.md",
     "LICENSE",
     "SKILL.md",
