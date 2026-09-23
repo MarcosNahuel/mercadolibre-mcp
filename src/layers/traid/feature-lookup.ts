@@ -13,7 +13,7 @@ export function registerTraidFeatureLookup(server: McpServer) {
     'Busca features reusables del catálogo TRAID (155+ features auditadas en 10 repos cliente). ' +
       'Devuelve top N matches con descripción, dónde se implementó, cómo reusar, trade-offs. ' +
       'Usar para no reinventar la rueda en proyectos nuevos. ' +
-      'Ej: query="repricing" → motor-repricing-semaforo-7-estados (lubbi-erp).',
+      'Ej: query="repricing" → motor-repricing-semaforo-7-estados.',
     {
       query: z.string().describe('Slug exacto, keyword o frase descriptiva (ej: "repricing", "oauth multi tenant ml", "bot preventa")'),
       limit: z.number().int().min(1).max(10).default(5).optional().describe('Máx hits a devolver (default 5)'),
@@ -34,7 +34,7 @@ export function registerTraidFeatureLookup(server: McpServer) {
                 `## traid_feature_lookup("${query}")\n\n` +
                 `❌ Sin matches.\n\n` +
                 `Sugerencias:\n` +
-                `- Probar con keywords más amplias (ej: "pricing" en vez de "repricing semáforo lubbi")\n` +
+                `- Probar con keywords más amplias (ej: "pricing" en vez de "repricing semáforo 7 estados")\n` +
                 `- Quitar el filtro de category si lo usaste\n` +
                 `- Buscar gotcha relacionado con \`traid_gotcha_search\`\n` +
                 `- Ver patrón con \`traid_pattern_for\``,

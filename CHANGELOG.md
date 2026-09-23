@@ -2,6 +2,34 @@
 
 Todas las versiones de `@nahuelalbornoz/mercadolibre-mcp` en orden inverso.
 
+## [1.2.0-alpha.3] — Contención (decisión D-2026-09-23-01)
+
+> Bloque de contención: `latest` (1.1.1) exponía las 4 tools de escritura sin
+> candado, y `alpha` (1.2.0-alpha.2) publicaba en npm un snapshot con 13 fichas de
+> clientes TRAID (nombre + rubro) que ni siquiera era reproducible desde git (el
+> commiteado tenía 8/36, el tarball publicado 13/76 — se había regenerado y
+> publicado sin commitear). Ver `docs/meli-seller-program/.../areas/mcp.md` y
+> DECISIONES.md D-2026-09-23-01 en CONOCIMIENTO-NAHUEL.
+
+### Security
+- **Candado de escritura por defecto** (`ML_WRITES_ENABLED`, flag de producción,
+  default OFF): `update_price`, `update_stock`, `answer_question` y `manage_ads`
+  ya NO se registran salvo que se setee explícitamente. El gate real vive en
+  `tool-guard.ts` (`assertToolAllowed`) — corta el registro aunque algo intente
+  saltear el chequeo de `index.ts`. Test adversarial que rompe el gate a propósito
+  y confirma que los tests fallan (`test/tool-guard.test.ts`).
+- **El paquete npm ya NO bundlea `data/knowledge.json`** (se sacó `data` de
+  `files` en `package.json`). Cierra no sólo la ficha de clientes (`clients: []`
+  en el snapshot commiteado) sino un hallazgo más amplio de esta contención:
+  nombres de clientes también aparecían en `features`/`gotchas`/`sql_snippets`
+  vía `repos_origin` y referencias a schemas (`traid-adrian`, `hernan.sync_runs`,
+  `lubbi-erp`) — no cubierto por el redact de alpha.1. `TRAID_KNOWLEDGE_MODE=filesystem`
+  sigue disponible para uso interno de TRAID sobre un checkout local.
+- Placeholders genéricos en README/`feature-lookup.ts` en vez de nombres de
+  clientes reales como ejemplos.
+- `PACKAGE_VERSION` en `index.ts` estaba desincronizado (`1.2.0-alpha.1` en un
+  paquete `1.2.0-alpha.2`) — corregido para trackear `package.json`.
+
 ## [1.2.0-alpha.2] — Fusión `meli-seller-mcp` (2026-07-18, publicado 2026-07-31)
 
 > Publicado como `alpha.2`: `alpha.1` quedó con un tombstone en el registro de npm

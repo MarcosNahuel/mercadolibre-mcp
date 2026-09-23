@@ -35,10 +35,11 @@ import { registerUpstreamProxy } from './upstream-proxy.js'
 // Capa 2 — knowledge tools
 import { registerTraidLayer } from './layers/traid/index.js'
 
-// Candados: bloquea el registro de tools destructivas/de compra (buy_*, delete, etc.)
-import { guardServer } from './tool-guard.js'
+// Candados: bloquea destructivas/compra SIEMPRE, y las 4 de escritura salvo
+// ML_WRITES_ENABLED=1 (default: read-only).
+import { guardServer, areWritesEnabled } from './tool-guard.js'
 
-const PACKAGE_VERSION = '1.2.0-alpha.1'
+const PACKAGE_VERSION = '1.2.0-alpha.3'
 
 const rawServer = new McpServer({
   name: 'traid-ml-hub',
@@ -61,6 +62,18 @@ const skipMl = disabledLayers.has('ml')
 const skipTraid = disabledLayers.has('traid')
 const skipFlow = disabledLayers.has('flow') || !process.env.TRAID_FLOWS_ENABLED
 
+// Candado de escritura: read-only por defecto. El gate real vive en tool-guard.ts
+// (assertToolAllowed corta igual si algo intenta registrar una de estas 4 sin el
+// flag) — acá evitamos llamar a los register* de escritura para no ensuciar el
+// arranque con errores esperados.
+const writesEnabled = areWritesEnabled()
+if (!writesEnabled) {
+  console.error(
+    '[traid-ml-hub] ML_WRITES_ENABLED no está en 1: arrancando READ-ONLY. ' +
+      'update_price/update_stock/answer_question/manage_ads NO se registran.'
+  )
+}
+
 // ============================================================================
 // Capa 1 — ML raw tools (siempre, salvo opt-out)
 // ============================================================================
@@ -68,12 +81,18 @@ const skipFlow = disabledLayers.has('flow') || !process.env.TRAID_FLOWS_ENABLED
 if (!skipMl) {
   registerListProducts(server)
   registerGetOrders(server)
-  registerUpdatePrice(server)
-  registerUpdateStock(server)
+  if (writesEnabled) {
+    registerUpdatePrice(server)
+    registerUpdateStock(server)
+  }
   registerListQuestions(server)
-  registerAnswerQuestion(server)
+  if (writesEnabled) {
+    registerAnswerQuestion(server)
+  }
   registerGetItemMetrics(server)
-  registerManageAds(server)
+  if (writesEnabled) {
+    registerManageAds(server)
+  }
   registerGetReputation(server)
   registerSearchCompetitors(server)
   registerGetCategories(server)
@@ -119,16 +138,17 @@ async function main() {
   const transport = new StdioServerTransport()
   await server.connect(transport)
 
+  const mlCount = writesEnabled ? 14 : 10
   const capaStatus = [
     !skipUpstream ? `0:official(${proxiedCount})` : '0:off',
-    !skipMl ? '1:ml(14)' : '1:off',
+    !skipMl ? `1:ml(${mlCount})` : '1:off',
     !skipTraid ? '2:traid(2)' : '2:off',
     !skipFlow ? '3:flow(0)' : '3:off',
     '4:meta(0)',
   ].join(' ')
 
   console.error(
-    `[traid-ml-hub] v${PACKAGE_VERSION} iniciado · capas: ${capaStatus}` +
+    `[traid-ml-hub] v${PACKAGE_VERSION} iniciado · modo=${writesEnabled ? 'READ-WRITE' : 'READ-ONLY'} · capas: ${capaStatus}` +
       (process.env.TRAID_CLIENT_SLUG ? ` · client=${process.env.TRAID_CLIENT_SLUG}` : '')
   )
 }

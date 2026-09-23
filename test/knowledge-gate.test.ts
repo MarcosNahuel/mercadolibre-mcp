@@ -14,19 +14,19 @@ test('gate alpha.0: traid_feature_lookup("repricing") devuelve >= 3 hits', () =>
 test('el snapshot bundled no esta vacio (fallback silencioso seria un bug)', () => {
   const snap = loadKnowledge()
   assert.ok(snap.features.length > 0, 'snapshot sin features: revisar data/knowledge.json')
-  assert.ok(snap.clients.length > 0, 'snapshot sin clients')
   assert.notEqual(snap.source_commit, 'none', 'snapshot vacio/fallback (EMPTY_SNAPSHOT)')
 })
 
-test('traid_client_context: getClient devuelve datos para un slug conocido', () => {
+// Contención D-2026-09-23-01: el snapshot que se versiona y empaqueta NUNCA lleva
+// fichas de clientes TRAID (nombre/rubro). traid_client_context sin match debe
+// devolver la lista vacía, no datos reales. Si este test falla porque `clients`
+// dejó de estar vacío, es una regresión de seguridad, no un bug de test.
+test('contención: el snapshot NO trae fichas de clientes (clients vacío)', () => {
   const snap = loadKnowledge()
-  const anySlug = snap.clients[0]?.slug
-  assert.ok(anySlug, 'no hay clients en el snapshot')
-  const client = getClient(anySlug)
-  assert.ok(client)
-  assert.equal(client?.slug, anySlug)
+  assert.equal(snap.clients.length, 0, `snapshot con ${snap.clients.length} clientes: no debe versionarse/publicarse con datos de clientes`)
 })
 
-test('getClient: slug inexistente devuelve undefined (no lanza)', () => {
+test('getClient: cualquier slug devuelve undefined (no hay clients en el snapshot público)', () => {
+  assert.equal(getClient('adrian'), undefined)
   assert.equal(getClient('slug-que-no-existe-xyz'), undefined)
 })
