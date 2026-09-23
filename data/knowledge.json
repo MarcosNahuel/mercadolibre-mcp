@@ -31,7 +31,7 @@
         "STACK"
       ],
       "repos_origin": [
-        "traid-adrian"
+        "repo-cliente-a"
       ],
       "reusability": "alta",
       "status": "production",
@@ -93,7 +93,7 @@
         "SOFTWARE"
       ],
       "repos_origin": [
-        "globalstats"
+        "repo-cliente-d"
       ],
       "reusability": "alta",
       "status": "production",
@@ -107,7 +107,7 @@
         ],
         "cons": []
       },
-      "how_to_reuse": "1. Copiar `lib/trading/risk-manager.ts` como base\n2. Reemplazar los controles por los relevantes al dominio (precios, descuentos, compras, etc.)\n3. Configurar umbrales como constantes o en tabla de config por tenant\n4. Integrar canal de notificación: Telegram (como globalstats), email, o dashboard con badge\n5. Implementar state machine en Supabase: columna `status` con check constraint",
+      "how_to_reuse": "1. Copiar `lib/trading/risk-manager.ts` como base\n2. Reemplazar los controles por los relevantes al dominio (precios, descuentos, compras, etc.)\n3. Configurar umbrales como constantes o en tabla de config por tenant\n4. Integrar canal de notificación: Telegram (como repo-cliente-d), email, o dashboard con badge\n5. Implementar state machine en Supabase: columna `status` con check constraint",
       "related_features": [
         "sistema-alertas-n8n-errorworkflow",
         "langgraph-daily-analyst"
@@ -155,7 +155,7 @@
         "N8N"
       ],
       "repos_origin": [
-        "diego-erp"
+        "repo-cliente-c"
       ],
       "reusability": "alta",
       "status": "production",
@@ -246,7 +246,7 @@
         "STACK"
       ],
       "repos_origin": [
-        "traid-adrian"
+        "repo-cliente-a"
       ],
       "reusability": "alta",
       "status": "production",
@@ -278,7 +278,7 @@
         "SOFTWARE"
       ],
       "repos_origin": [
-        "lubbi-erp"
+        "repo-cliente-b"
       ],
       "reusability": "alta",
       "status": "production",
@@ -372,7 +372,7 @@
         "DATOS"
       ],
       "repos_origin": [
-        "globalstats"
+        "repo-cliente-d"
       ],
       "reusability": "alta",
       "status": "production",
@@ -524,7 +524,7 @@
         "STACK"
       ],
       "repos_origin": [
-        "traid-adrian"
+        "repo-cliente-a"
       ],
       "reusability": "alta",
       "status": "production",
@@ -554,7 +554,7 @@
         "AUTOMATIZACION"
       ],
       "repos_origin": [
-        "traid-adrian"
+        "repo-cliente-a"
       ],
       "reusability": "alta",
       "status": "production",
@@ -612,7 +612,7 @@
         "SOFTWARE"
       ],
       "repos_origin": [
-        "traid-adrian"
+        "repo-cliente-a"
       ],
       "reusability": "alta",
       "status": "production",
@@ -674,7 +674,7 @@
         "SOFTWARE"
       ],
       "repos_origin": [
-        "traid-adrian"
+        "repo-cliente-a"
       ],
       "reusability": "alta",
       "status": "staging",
@@ -735,7 +735,7 @@
         "SOFTWARE"
       ],
       "repos_origin": [
-        "traid-adrian"
+        "repo-cliente-a"
       ],
       "reusability": "alta",
       "status": "production",
@@ -796,7 +796,7 @@
         "SOFTWARE"
       ],
       "repos_origin": [
-        "traid-adrian"
+        "repo-cliente-a"
       ],
       "reusability": "alta",
       "status": "production",
@@ -827,7 +827,7 @@
         "DATOS"
       ],
       "repos_origin": [
-        "diego-erp"
+        "repo-cliente-c"
       ],
       "reusability": "alta",
       "status": "production",
@@ -838,7 +838,7 @@
           "Pros: fail-safe anti-stale evita publicar stock incorrecto por fallas del ERP; divergence log permite auditoría; el patrón CRON_SECRET + endpoint es el estándar TRAID para todos los proyectos; soporta packs (base_product_id)"
         ],
         "cons": [
-          "Contras: el conector drixservices es específico al ERP de Diego; cambiar de ERP requiere reescribir src/app/api/sicar/ completo; la Full-aware logic para ML Fulfillment es compleja (requiere revisión para cada cliente)"
+          "Contras: el conector drixservices es específico al ERP de un cliente; cambiar de ERP requiere reescribir src/app/api/sicar/ completo; la Full-aware logic para ML Fulfillment es compleja (requiere revisión para cada cliente)"
         ]
       },
       "how_to_reuse": "1. Copiar: `src/app/api/sicar/` + `src/app/api/stock/effective-sync/` + 3 migraciones (`*_sicar_stock.sql`, `*_stock_efectivo*.sql`)\n2. Adaptar: cambiar `WC_STORE_URL` / `WC_CONSUMER_KEY` / `WC_CONSUMER_SECRET`; reemplazar el cliente de `drixservices` por la API del ERP del cliente nuevo; revisar la Full-aware logic si el cliente no usa Fulfillment ML\n3. Conectar: crear el workflow n8n con schedule cada 2h + Bearer token; configurar el CRON_SECRET en Vercel + n8n\n4. Validar: ejecutar un sync manual y verificar `stock_effective_sync_runs` con status `success`; comparar stock en ML y WooCommerce vs. `sicar_stock_current - ventas`; revisar `stock_divergence_log` (debe estar vacío o con divergencias < 2%)",
@@ -887,7 +887,7 @@
         "AUTOMATIZACION"
       ],
       "repos_origin": [
-        "traid-adrian"
+        "repo-cliente-a"
       ],
       "reusability": "alta",
       "status": "staging",
@@ -918,7 +918,7 @@
         "AUTOMATIZACION"
       ],
       "repos_origin": [
-        "traid-adrian"
+        "repo-cliente-a"
       ],
       "reusability": "alta",
       "status": "staging",
@@ -948,7 +948,7 @@
         "DATOS"
       ],
       "repos_origin": [
-        "traid-adrian"
+        "repo-cliente-a"
       ],
       "reusability": "alta",
       "status": "production",
@@ -959,7 +959,7 @@
           "Pros: compara manzanas con manzanas (precio en mano bajo el mismo régimen, no precio de lista); dual-currency local + USD; mata el competidor fantasma; FX honesto (ratio GS, no 1:1); alertas change-based (no spamea); sync idempotente y stalest-first que cabe en el límite de función de Vercel."
         ],
         "cons": [
-          "Contras: depende de token OAuth de cuenta CBT/Global Selling (sin ese token el benchmark no se puebla — fue el bloqueo de Milestone B en traid-adrian); el matching de competidores usa Gemini → costo + latencia por ítem (por eso budget de tiempo); el flag current del grafo de benchmark puede no llegar en cuentas reales (revisar parse-benchmark); hoy cubre los sitios cableados (MLA/MLM/MLC/MLB/MCO), agregar país = mapear su tax/FX."
+          "Contras: depende de token OAuth de cuenta CBT/Global Selling (sin ese token el benchmark no se puebla — fue el bloqueo de Milestone B en repo-cliente-a); el matching de competidores usa Gemini → costo + latencia por ítem (por eso budget de tiempo); el flag current del grafo de benchmark puede no llegar en cuentas reales (revisar parse-benchmark); hoy cubre los sitios cableados (MLA/MLM/MLC/MLB/MCO), agregar país = mapear su tax/FX."
         ]
       },
       "how_to_reuse": "1. Copiar: carpeta `app/dashboard/competencia/` completa (page + `_tabs/` + `_components/`), `app/dashboard/cross-country/[item_id]/`, `lib/competencia/*`, el cron `app/api/cron/sync-competencia/route.ts`, y la migración `cross_country_tracker.sql`.\n2. Adaptar: el set de sitios destino (`SITE_NAME`/`SITE_CODE`: MLA/MLM/...), el `account_label` del cliente, las dependencias de matching/FX (`lib/matching/competition-candidates`, `lib/pricing/fx*`, `lib/pricing/listing-economics`) y los helpers compartidos (`getCurrentAccount`, `createAdminClient`, `pickDisplayTitle`, `sellerListingUrl`).\n3. Conectar: agendar el cron en `vercel.json` (Vercel manda `Authorization: Bearer $CRON_SECRET` / `x-vercel-cron`), proveer token OAuth ML del seller (cuenta CBT/Global Selling) y poblar `catalog_competition` con un backfill inicial (`scripts/sync-catalog-competition.ts`).\n4. Validar: correr `scripts/qa-validate-competencia.ts` + `qa-validate-paused-items.ts`; en la UI confirmar que el banner muestra \"Sincronizado hace X\", que no aparece competidor fantasma (`comp_price_usd` null sin benchmark) y que los KPIs (Liderás/Perdés, con competidor) cuadran.",
@@ -978,7 +978,7 @@
         "DATOS"
       ],
       "repos_origin": [
-        "traid-adrian"
+        "repo-cliente-a"
       ],
       "reusability": "alta",
       "status": "production",
@@ -1010,7 +1010,7 @@
         "DATOS"
       ],
       "repos_origin": [
-        "lubbi-erp"
+        "repo-cliente-b"
       ],
       "reusability": "alta",
       "status": "production",
@@ -1020,7 +1020,7 @@
         "pros": [
           "Requiere costos cargados para recomendaciones útiles; sin costos el semáforo es parcialmente ciego",
           "El modo auto puede aplicar cambios masivos — recomendado arrancar con aprobación manual",
-          "Versión de diego-erp tiene función decideMotor() ligeramente diferente (política configurable por argumento); preferir lubbi-erp como base"
+          "Versión de repo-cliente-c tiene función decideMotor() ligeramente diferente (política configurable por argumento); preferir repo-cliente-b como base"
         ],
         "cons": []
       },
@@ -1040,7 +1040,7 @@
         "DATOS"
       ],
       "repos_origin": [
-        "traid-adrian"
+        "repo-cliente-a"
       ],
       "reusability": "alta",
       "status": "staging",
@@ -1096,7 +1096,7 @@
       "id": "gotcha-benchmarks-403-local",
       "endpoint_pattern": "/marketplace/benchmarks/*",
       "summary": "Endpoint exclusivo Global Selling/CBT. Sellers locales devuelven 403 'Invalid caller.id'.",
-      "workaround": "Pre-flight /users/me.tags. Si no es GS, usar /items/{id}/price_to_win + /products/{cat_prod_id}/items + cálculo de tax desde adrian.country_taxes.",
+      "workaround": "Pre-flight /users/me.tags. Si no es GS, usar /items/{id}/price_to_win + /products/{cat_prod_id}/items + cálculo de tax desde <schema_cliente>.country_taxes.",
       "source": "obs #581, VIABILIDAD-tecnica §13",
       "validated_at": "2026-05-22",
       "severity": "alta"
@@ -1435,7 +1435,7 @@
         "productos únicos sin benchmark"
       ],
       "example_implementations": [
-        "lubbi-erp",
+        "repo-cliente-b",
         "TRAID-ERP-V2"
       ]
     },
@@ -1472,8 +1472,8 @@
       ],
       "example_implementations": [
         "agus",
-        "lubbi-erp",
-        "diego-erp"
+        "repo-cliente-b",
+        "repo-cliente-c"
       ]
     },
     {
@@ -1594,7 +1594,7 @@
         "reads puros"
       ],
       "example_implementations": [
-        "globalstats"
+        "repo-cliente-d"
       ]
     },
     {
@@ -1629,7 +1629,7 @@
       ],
       "example_implementations": [
         "mati-satine-software",
-        "lubbi-erp"
+        "repo-cliente-b"
       ]
     },
     {
@@ -1647,7 +1647,7 @@
         "DB sensible sin RLS bien definida"
       ],
       "example_implementations": [
-        "lubbi-erp"
+        "repo-cliente-b"
       ]
     },
     {
